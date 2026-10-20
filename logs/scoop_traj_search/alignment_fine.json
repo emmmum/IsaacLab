@@ -1,0 +1,117 @@
+[
+ {
+  "kind": "dy",
+  "value": -0.04,
+  "success": 0.0
+ },
+ {
+  "kind": "dy",
+  "value": -0.03,
+  "success": 0.5133333206176758
+ },
+ {
+  "kind": "dy",
+  "value": -0.02,
+  "success": 0.9666666984558105
+ },
+ {
+  "kind": "dy",
+  "value": -0.01,
+  "success": 0.9600000381469727
+ },
+ {
+  "kind": "dy",
+  "value": -0.005,
+  "success": 0.9600000381469727
+ },
+ {
+  "kind": "dy",
+  "value": 0.0,
+  "success": 0.9666666984558105
+ },
+ {
+  "kind": "dy",
+  "value": 0.005,
+  "success": 0.9533333778381348
+ },
+ {
+  "kind": "dy",
+  "value": 0.01,
+  "success": 0.9533333778381348
+ },
+ {
+  "kind": "dy",
+  "value": 0.015,
+  "success": 0.9800000190734863
+ },
+ {
+  "kind": "dy",
+  "value": 0.02,
+  "success": 0.9600000381469727
+ },
+ {
+  "kind": "dy",
+  "value": 0.025,
+  "success": 0.8600000143051147
+ },
+ {
+  "kind": "dy",
+  "value": 0.03,
+  "success": 0.3866666853427887
+ },
+ {
+  "kind": "dy",
+  "value": 0.035,
+  "success": 0.0
+ },
+ {
+  "kind": "dy",
+  "value": 0.04,
+  "success": 0.0
+ },
+ {
+  "kind": "dy",
+  "value": 0.05,
+  "success": 0.0
+ },
+ {
+  "kind": "yaw",
+  "value": -2.0,
+  "success": 0.006666666828095913
+ },
+ {
+  "kind": "yaw",
+  "value": -1.5,
+  "success": 0.8266667127609253
+ },
+ {
+  "kind": "yaw",
+  "value": -1.0,
+  "success": 0.9466667175292969
+ },
+ {
+  "kind": "yaw",
+  "value": -0.5,
+  "success": 0.9466667175292969
+ },
+ {
+  "kind": "yaw",
+  "value": 0.5,
+  "success": 1.0
+ },
+ {
+  "kind": "yaw",
+  "value": 1.0,
+  "success": 0.9399999976158142
+ },
+ {
+  "kind": "yaw",
+  "value": 1.5,
+  "success": 0.8066666722297668
+ },
+ {
+  "kind": "yaw",
+  "value": 2.0,
+  "success": 0.02666666731238365
+ }
+]

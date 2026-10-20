@@ -1,0 +1,16 @@
+{
+  "description": "Open-loop scoop trajectory, no slip randomization, ball fixed 1.0 m dead ahead, robot and ball at rest. 96.0% success over 150 identical runs (ball in net, held >= 1 s at the end of a 4 s window).",
+  "env_overrides": {
+    "robot_cfg.init_state.joint_pos.RevoluteJoint2": -0.632,
+    "base_slip_scale_range": [1.0, 1.0], "base_slip_bias_max": [0, 0, 0], "base_slip_noise_std": [0, 0, 0], "base_slip_lag_tau_range": [0.1, 0.1],
+    "ball_spawn_x_range": [1.0, 1.0], "ball_spawn_y_range": [0.0, 0.0],
+    "arm_locked": false, "arm_monotonic": true, "base_forward_only": true
+  },
+  "trajectory": {
+    "v": 0.8, "v_unit": "m/s, constant forward command from t=0",
+    "t_lift": 0.8, "t_lift_unit": "s, arm lift start (ball first touches the net at ~0.73 s)",
+    "rate": 1.0, "rate_unit": "rad/s per joint",
+    "d_shoulder": 0.3, "d_elbow": 0.99, "d_unit": "rad raise above the initial pose",
+    "t_brake": 0.5, "t_brake_unit": "s after t_lift, then vx command 0"
+  }
+}

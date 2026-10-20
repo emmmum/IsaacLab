@@ -1,0 +1,13 @@
+{
+  "description": "Open-loop scoop trajectory for the MIT-mode arm (Kp shoulder 10 / elbow 25, Kd 3, 4 N m, gravity-comp feedforward, real masses). No slip randomization, ball fixed 1.0 m dead ahead, robot and ball at rest. 97.3% success over 150 identical runs.",
+  "env_overrides": {
+    "base_slip_scale_range": [1.0, 1.0], "base_slip_bias_max": [0, 0, 0], "base_slip_noise_std": [0, 0, 0], "base_slip_lag_tau_range": [0.1, 0.1],
+    "ball_spawn_x_range": [1.0, 1.0], "ball_spawn_y_range": [0.0, 0.0],
+    "arm_locked": false, "arm_monotonic": true, "base_forward_only": true
+  },
+  "trajectory": {
+    "v": 0.8, "t_lift": 0.8, "rate": 1.0, "d_shoulder": 0.6, "d_elbow": 0.99, "t_brake": 1.0,
+    "press_elbow": -0.6,
+    "units": "v m/s from t=0; t_lift s; rate rad/s per joint; d_* rad above initial pose; t_brake s after t_lift; press_elbow N m feedforward before t_lift (negative = head down)"
+  }
+}
