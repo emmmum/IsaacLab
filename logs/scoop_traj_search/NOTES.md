@@ -128,7 +128,9 @@ work). Results `grid_kp500_el*.json`.
   3.5-3.9 N m, which would hide a late contact. Plot `deck_img/torque_impact.png`. Sim net/stick are rigid -> real peak
   likely smaller/smoother.
 - Slides: `robomaster_lacrosse_scoop_progress_v2.pptx` (build script `build2.js`, video Drive links in `links.json`,
-  empty until the user sends them; rebuild needs pptxgenjs).
+  filled 2026-10-20 from the shared folder; rebuild needs pptxgenjs).
+  Drive folder: https://drive.google.com/drive/folders/1j5eB20g6uCwuTs54XmgiSta9ygdR1BRW (public listing works via
+  embeddedfolderview?id=<folder id>).
 - Next (user plan): measure real MIT motor torque at impact (>=500 Hz log, no-ball baselines, 0.5/0.9 m/s with ball,
   static calibration with the ball). Then contact-triggered lift in sim (torque threshold), residual RL with torque
   history only if needed. Torque does not help lateral/heading misalignment -> needs vision.

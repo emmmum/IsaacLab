@@ -347,8 +347,8 @@ s.addText([
 // ================= 14. Video: failures =================
 s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
 s.addText("Watch: the 7 failures fall into two modes", { placeholder: "title" });
-s.addText("A · Late contact: ball ~2 cm farther, slides off the lip", { x: M, y: 1.35, w: 6.0, h: 0.4, fontSize: 15, bold: true, color: C.accent3, margin: 0, isTextBox: true });
-s.addText("B · Lifted to ~43 cm, thrown out of the pocket side", { x: M + 6.15, y: 1.35, w: 6.0, h: 0.4, fontSize: 15, bold: true, color: C.accent5, margin: 0, isTextBox: true });
+s.addText("A · Late contact: ball ~2 cm farther, slides off the lip", { x: M, y: 1.35, w: 6.0, h: 0.4, fontSize: 14, bold: true, color: C.accent3, margin: 0, isTextBox: true });
+s.addText("B · Lifted to ~43 cm, thrown out of the pocket side", { x: M + 6.15, y: 1.35, w: 6.0, h: 0.4, fontSize: 14, bold: true, color: C.accent5, margin: 0, isTextBox: true });
 // failure thumbnails use the cropped frames (caption band removed)
 ["f145", "f203", "f172", "f307"].forEach((k) => { LINKS[k + "x"] = LINKS[k]; });
 [["f145", "Robot #145: ball 2.6 cm farther"], ["f203", "Robot #203: ball 2.2 cm farther, lifted 21 cm then lost"]].forEach(([k, l], i) => {
