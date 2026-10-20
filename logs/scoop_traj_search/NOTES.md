@@ -145,3 +145,19 @@ work). Results `grid_kp500_el*.json`.
   (`stick_textures/`) to both long-stick USDs. The robot USDs are gitignored (*.usd) -> committed with `git add -f`.
 - Env issue since ~10-17: torch cu130 cannot find libnvrtc-builtins.so.13.0 (in env_isaaclab/.../nvidia/cu13/lib);
   demo preloads it, other scripts need LD_LIBRARY_PATH=<that dir>.
+
+## 2026-10-20: residual RL with sparse success reward
+- Task `Isaac-RoboMaster-Lacrosse-Scoop-RL-Direct-v0` (`robomaster_lacrosse_scoop_rl_env[_cfg].py`): action = open-loop
+  trajectory + residual (speed +-0.2 m/s, lift increment +-0.33 after t_lift only -- before t_lift the monotonic arm
+  ratchets noise upward and lifts the lip: 0% success). Reward = 1 at time-out if ball in net for the last 1 s.
+  Obs selectable with `env.obs_terms=[...]` (arm_pos, phase, arm_vel, arm_torque, base_vel). PPO 4096 envs, 300 it.
+- Eval (`eval_scoop_rl.py`, deterministic, ~4100 episodes, one seed each):
+  | policy | ball x 0.9-1.1 | ball x 0.97-1.03 | farthest bin 1.06-1.10 |
+  | open loop (zero residual) | 78.1% | 97.9% | 25% |
+  | A arm angles only | 61.1% | 84.2% | 1% |
+  | C arm angles + phase | 92.7% | - | 75% |
+  | B arm angles + torque + phase | 96.8% | 100.0% | 86% |
+- Behavior (`rl_traces/open_vs_B.png`): B drives ~0.97 m/s, keeps the shoulder down and lifts the elbow ~55 deg
+  (open loop 38 deg) -- nearly the same motion at 1.00 and 1.08 m, so most of the gain is a better open-loop motion
+  (phase alone gets to 92.7%); torque adds ~4 points, mostly on the farthest balls. Angles-only obs is worse than no
+  RL (pre-lift angles are ~constant; normalized noise?). Torque in sim is noise-free -> randomize before trusting.

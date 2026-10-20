@@ -39,3 +39,42 @@ class RobomasterLacrossePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class RobomasterLacrosseScoopRLPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    """PPO for the residual scoop with a sparse success reward.
+
+    The residual starts small (low action noise) so early rollouts stay close to the open-loop trajectory, and the
+    discount is high because the only reward arrives at the end of the 240-step episode.
+    """
+
+    num_steps_per_env = 48
+    max_iterations = 300
+    save_interval = 25
+    experiment_name = "robomaster_lacrosse_scoop_rl"
+    actor = RslRlMLPModelCfg(
+        hidden_dims=[64, 64],
+        activation="elu",
+        obs_normalization=True,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.3),
+    )
+    critic = RslRlMLPModelCfg(
+        hidden_dims=[128, 128],
+        activation="elu",
+        obs_normalization=True,
+    )
+    algorithm = RslRlPpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.0,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=3.0e-4,
+        schedule="adaptive",
+        gamma=0.995,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )
