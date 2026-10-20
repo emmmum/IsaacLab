@@ -17,15 +17,15 @@ const THEME = {
 };
 const HEX = THEME.colors;
 
-const pres = new pptxgen();
-pres.layout = "LAYOUT_WIDE";
-pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
-pres.title = "RoboMaster Lacrosse Scoop - Progress Report";
-pres.author = "Yifan";
-const C = pres.SchemeColor;
+const deck = new pptxgen();
+deck.layout = "LAYOUT_WIDE";
+deck.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
+deck.title = "RoboMaster Lacrosse Scoop - Progress Report";
+deck.author = "Yifan";
+const C = deck.SchemeColor;
 const W = 13.333, H = 7.5, M = 0.6;
 
-pres.defineSlideMaster({
+deck.defineSlideMaster({
   title: "DARK_TITLE",
   background: { color: C.text1 },
   objects: [
@@ -33,7 +33,7 @@ pres.defineSlideMaster({
     { placeholder: { options: { name: "body", type: "body", x: M, y: 4.2, w: 7.0, h: 1.4, fontSize: 18, color: C.accent1, valign: "top", margin: 0 }, text: "" } },
   ],
 });
-pres.defineSlideMaster({
+deck.defineSlideMaster({
   title: "CONTENT",
   background: { color: C.background1 },
   objects: [
@@ -41,7 +41,7 @@ pres.defineSlideMaster({
   ],
   slideNumber: { x: W - 0.9, y: H - 0.5, w: 0.5, h: 0.3, fontSize: 10, color: C.accent6, align: "right" },
 });
-pres.defineSlideMaster({
+deck.defineSlideMaster({
   title: "DARK_CONTENT",
   background: { color: C.text1 },
   objects: [
@@ -52,10 +52,10 @@ pres.defineSlideMaster({
 
 // ---------- helpers ----------
 function card(slide, x, y, w, h, fill = C.background2) {
-  slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w, h, fill: { color: fill }, line: { type: "none" }, rectRadius: 0.08 });
+  slide.addShape(deck.shapes.ROUNDED_RECTANGLE, { x, y, w, h, fill: { color: fill }, line: { type: "none" }, rectRadius: 0.08 });
 }
 function numDot(slide, x, y, n, fill = C.accent1, txt = C.text1) {
-  slide.addShape(pres.shapes.OVAL, { x, y, w: 0.46, h: 0.46, fill: { color: fill }, line: { type: "none" } });
+  slide.addShape(deck.shapes.OVAL, { x, y, w: 0.46, h: 0.46, fill: { color: fill }, line: { type: "none" } });
   slide.addText(String(n), { x, y, w: 0.46, h: 0.46, align: "center", valign: "middle", fontSize: 16, bold: true, color: txt, margin: 0, isTextBox: true });
 }
 function caption(slide, text, x, y, w, color = C.accent6) {
@@ -71,8 +71,8 @@ function video(slide, key, x, y, w, label, dur, dark = false) {
   const r = Math.min(0.7, w * 0.16);
   const play = { x: x + w / 2 - r / 2, y: y + h / 2 - r / 2, w: r, h: r, fill: { color: C.text1, transparency: 25 }, line: { color: C.background1, width: 1.5 } };
   if (url) play.hyperlink = { url };
-  slide.addShape(pres.shapes.OVAL, play);
-  slide.addShape(pres.shapes.ISOSCELES_TRIANGLE, { x: x + w / 2 - r * 0.16, y: y + h / 2 - r * 0.2, w: r * 0.4, h: r * 0.4, rotate: 90, fill: { color: C.background1 }, line: { type: "none" } });
+  slide.addShape(deck.shapes.OVAL, play);
+  slide.addShape(deck.shapes.ISOSCELES_TRIANGLE, { x: x + w / 2 - r * 0.16, y: y + h / 2 - r * 0.2, w: r * 0.4, h: r * 0.4, rotate: 90, fill: { color: C.background1 }, line: { type: "none" } });
   slide.addText([
     { text: label, options: { bold: true, color: dark ? C.background1 : C.text1, breakLine: true } },
     url
@@ -92,8 +92,8 @@ const chartBase = (title) => ({
 const HDR = (t, align) => ({ text: t, options: { bold: true, color: HEX.lt1, fill: { color: HEX.dk2 }, align: align || "left" } });
 
 // ================= 1. Title =================
-pres.addSection({ title: "Intro" });
-let s = pres.addSlide({ masterName: "DARK_TITLE", sectionTitle: "Intro" });
+deck.addSection({ title: "Intro" });
+let s = deck.addSlide({ masterName: "DARK_TITLE", sectionTitle: "Intro" });
 s.addText("Scooping a Lacrosse Ball with a RoboMaster", { placeholder: "title" });
 s.addText([
   { text: "Open-loop scoop trajectory, step-by-step randomization, and the plan for torque sensing", options: { breakLine: true } },
@@ -103,7 +103,7 @@ video(s, "wheels_slow", 8.3, 1.7, 4.4, "Current best scoop, 4× slow motion", "1
 s.addNotes("Goal: a RoboMaster base with a 2-DOF arm holding a lacrosse stick drives to a ball and scoops it into the pocket. All results are from Isaac Lab simulation, with the robot model built from measured real-robot numbers. Video thumbnails in this deck link to the clips on Google Drive.");
 
 // ================= 2. Summary =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Intro" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Intro" });
 s.addText("A hand-designed open-loop scoop is near-perfect in simulation", { placeholder: "title" });
 const stats = [
   ["98.3%", "393 / 400 robots hold the ball", "1200 Hz physics, ball placed ±3 cm / ±1 cm at random", C.accent2],
@@ -124,8 +124,8 @@ s.addText([
 s.addNotes("Three headline numbers. 98.3% is the latest 400-robot run at 1200 Hz with random ball placement. 300/300 is with every realistic-uncertainty knob on. The red number is the open problem: the robot must be lined up within about 2 cm and 1 degree.");
 
 // ================= 3. Setup =================
-pres.addSection({ title: "Setup" });
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Setup" });
+deck.addSection({ title: "Setup" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Setup" });
 s.addText("The simulated robot is built from measured real-robot numbers", { placeholder: "title" });
 s.addImage({ path: IMG("frame_contact_side.png"), x: M, y: 1.5, w: 6.0, h: 6.0 * 410 / 730, objectName: "side-view" });
 caption(s, "Side view at contact (t = 0.9 s): the lip presses on the floor and the ball enters the pocket", M, 1.5 + 6.0 * 410 / 730 + 0.1, 6.0);
@@ -143,7 +143,7 @@ caption(s, "Side view at contact (t = 0.9 s): the lip presses on the floor and t
 s.addNotes("Masses, link lengths and motor parameters come from the real robot. With Kd fixed at 3, Kp 10 / 25 gives a damping ratio of about 1.2. Gravity compensation is fed forward.");
 
 // ================= 4. Video: best run =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Setup" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Setup" });
 s.addText("Watch: the current best scoop on the wheel-driven base", { placeholder: "title" });
 video(s, "wheels_real", M, 1.55, 3.85, "Real time", "3 s");
 video(s, "wheels_slow", M + 4.1, 1.55, 3.85, "4× slow motion", "12 s");
@@ -158,7 +158,7 @@ s.addText([
 s.addNotes("Click any thumbnail to open the clip on Google Drive.");
 
 // ================= 5. RL first attempt =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Setup" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Setup" });
 s.addText("Pure RL kept falling into local optima, so we switched approach", { placeholder: "title" });
 [
   ["Fix the sim first", "Contact stack overflow at 8192 envs dropped contacts; the first policy exploited it. Spawn height and ball placement were also fixed."],
@@ -175,8 +175,8 @@ s.addText("Pure RL kept falling into local optima, so we switched approach", { p
 s.addNotes("RSL-RL PPO with up to 8192 parallel environments. Both the reward and the simulator had exploitable holes. The pivot: hand-design the motion, search its few parameters, keep RL for residual corrections.");
 
 // ================= 6. Trajectory design =================
-pres.addSection({ title: "Method" });
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Method" });
+deck.addSection({ title: "Method" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Method" });
 s.addText("The scoop is a 5-parameter open-loop trajectory found by grid search", { placeholder: "title" });
 [
   ["Drive", "ramp to v = 0.9 m/s"],
@@ -185,7 +185,7 @@ s.addText("The scoop is a 5-parameter open-loop trajectory found by grid search"
   ["Brake", "stop driving 1.0 s after lift"],
 ].forEach(([h, b], i) => {
   const x = M + i * 3.07, y = 1.55, w = 2.75;
-  s.addShape(pres.shapes.CHEVRON, { x, y, w, h: 0.6, fill: { color: i === 2 ? C.accent2 : C.text2 }, line: { type: "none" } });
+  s.addShape(deck.shapes.CHEVRON, { x, y, w, h: 0.6, fill: { color: i === 2 ? C.accent2 : C.text2 }, line: { type: "none" } });
   s.addText(h, { x: x + 0.3, y, w: w - 0.6, h: 0.6, fontSize: 16, bold: true, color: C.background1, align: "center", valign: "middle", margin: 0, isTextBox: true });
   s.addText(b, { x, y: y + 0.7, w, h: 0.6, fontSize: 14, color: C.text1, margin: 0, align: "center", valign: "top", isTextBox: true });
 });
@@ -201,7 +201,7 @@ s.addText([
 s.addNotes("Executed open loop: velocity command for the base; position + velocity targets and torque feed-forward for the arm motors. Scripts: traj_grid*.py for search, traj_validate*.py and traj_robust.py for validation.");
 
 // ================= 7. Randomization ladder =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Method" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Method" });
 s.addText("We started deterministic and added randomization step by step", { placeholder: "title" });
 const G = (t) => ({ text: t, options: { align: "center", bold: true, color: HEX.accent2 } });
 const N = (t) => ({ text: t, options: { align: "center" } });
@@ -224,7 +224,7 @@ caption(s, "Rows 2–5: one knob at a time on the MIT trajectory, 500 runs each.
 s.addNotes("The trajectory was first found with no randomness at all. Then each source of uncertainty was added one at a time to see what it costs. The only one that broke it was base slip, so we asked for measured base numbers, re-ran the grid search with everything on, and got the robust trajectory. That trajectory then held on the wheel-driven base, with random ball placement, small floor tilts and ball variation.");
 
 // ================= 8. What could not be added =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Method" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Method" });
 s.addText("Some randomizations could not be added, or are not modeled yet", { placeholder: "title" });
 const notAdded = [
   ["Breaks the open-loop scoop", C.accent3, [
@@ -246,7 +246,7 @@ const notAdded = [
 notAdded.forEach(([h, col, items], i) => {
   const x = M + i * 4.1, y = 1.5, w = 3.85;
   card(s, x, y, w, 5.1);
-  s.addShape(pres.shapes.OVAL, { x: x + 0.25, y: y + 0.3, w: 0.3, h: 0.3, fill: { color: col }, line: { type: "none" } });
+  s.addShape(deck.shapes.OVAL, { x: x + 0.25, y: y + 0.3, w: 0.3, h: 0.3, fill: { color: col }, line: { type: "none" } });
   s.addText(h, { x: x + 0.7, y: y + 0.2, w: w - 0.9, h: 0.55, fontSize: 16, bold: true, color: C.text1, margin: 0, valign: "middle", isTextBox: true });
   const runs = [];
   items.forEach(([a, b], j) => {
@@ -258,7 +258,7 @@ notAdded.forEach(([h, col, items], i) => {
 s.addNotes("Three kinds of gaps. Red: real effects that the open-loop scoop cannot handle; these motivate closed-loop control. Yellow: effects PhysX does not model well, so results would be artifacts. Grey: not modeled yet; torque sensing is the one we need next.");
 
 // ================= 9. Video: model iterations =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Method" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Method" });
 s.addText("Watch: the scoop at each step of model fidelity", { placeholder: "title" });
 [
   ["soft_slow", "1. Soft arm PD (deterministic)"],
@@ -272,10 +272,10 @@ s.addText("Watch: the scoop at each step of model fidelity", { placeholder: "tit
 s.addNotes("Same camera for all four clips, 4× slow motion.");
 
 // ================= 10. Robustness chart =================
-pres.addSection({ title: "Results" });
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
+deck.addSection({ title: "Results" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
 s.addText("The scoop tolerates actuator and contact uncertainty", { placeholder: "title" });
-s.addChart(pres.charts.BAR, [{ name: "Success", labels: ["Nominal", "Joint friction", "Grav-comp ±20%", "Latency 0–33 ms", "Ball contact", "Robot friction", "Old slip model"], values: [96.0, 94.8, 96.8, 95.4, 94.8, 95.0, 43.8] }], {
+s.addChart(deck.charts.BAR, [{ name: "Success", labels: ["Nominal", "Joint friction", "Grav-comp ±20%", "Latency 0–33 ms", "Ball contact", "Robot friction", "Old slip model"], values: [96.0, 94.8, 96.8, 95.4, 94.8, 95.0, 43.8] }], {
   x: M, y: 1.45, w: 8.0, h: 5.2, barDir: "col", ...chartBase("Success rate, MIT trajectory, one knob at a time (500 runs each)"),
   chartColors: [HEX.accent2, HEX.accent2, HEX.accent2, HEX.accent2, HEX.accent2, HEX.accent2, HEX.accent3],
   dataLabelFormatCode: "0.0\"%\"", objectName: "robustness-chart",
@@ -289,14 +289,14 @@ s.addText([
 ], { x: 9.25, y: 1.85, w: 3.2, h: 4.4, fontSize: 14, color: C.text2, paraSpaceAfter: 8, margin: 0, valign: "top", isTextBox: true });
 
 // ================= 11. Alignment tolerance =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
 s.addText("Alignment with the ball is now the main limit", { placeholder: "title" });
 [
   ["Lateral offset", ["±2 cm", "±3 cm", "±4 cm"], [96.5, 45, 0]],
   ["Heading error", ["±1°", "±1.5°", "±2°"], [96.5, 82, 0]],
   ["Ball distance", ["15 cm closer", "5 cm farther", "10 cm farther"], [95, 92.5, 35]],
 ].forEach(([t, labels, vals], i) => {
-  s.addChart(pres.charts.BAR, [{ name: t, labels, values: vals }], {
+  s.addChart(deck.charts.BAR, [{ name: t, labels, values: vals }], {
     x: M + i * 4.1, y: 1.45, w: 3.9, h: 3.9, barDir: "col", ...chartBase(t),
     chartColors: vals.map((v) => (v >= 90 ? HEX.accent2 : v >= 60 ? HEX.accent1 : HEX.accent3)),
     dataLabelFormatCode: "0\"%\"", objectName: "align-" + i,
@@ -309,9 +309,9 @@ s.addText([
 caption(s, "Realistic uncertainty on. Where a range was measured (e.g. 95–98%), the bar shows its midpoint.", M, 6.5, W - 2 * M);
 
 // ================= 12. Environment variation =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
 s.addText("Floor tilt matters, ball variation does not", { placeholder: "title" });
-s.addChart(pres.charts.BAR, [{ name: "Tilt", labels: ["±0.2°", "±0.3°", "±1°"], values: [99.3, 94.0, 61.3] }], {
+s.addChart(deck.charts.BAR, [{ name: "Tilt", labels: ["±0.2°", "±0.3°", "±1°"], values: [99.3, 94.0, 61.3] }], {
   x: M, y: 1.45, w: 5.6, h: 4.6, barDir: "col", ...chartBase("Random floor roll/pitch (300 runs each)"),
   chartColors: [HEX.accent2, HEX.accent2, HEX.accent3], dataLabelFormatCode: "0.0\"%\"", objectName: "tilt-chart",
 });
@@ -322,13 +322,13 @@ s.addChart(pres.charts.BAR, [{ name: "Tilt", labels: ["±0.2°", "±0.3°", "±1
 ].forEach(([h, b, col], i) => {
   const y = 1.55 + i * 1.6;
   card(s, 6.8, y, 5.9, 1.4);
-  s.addShape(pres.shapes.OVAL, { x: 7.05, y: y + 0.25, w: 0.3, h: 0.3, fill: { color: col }, line: { type: "none" } });
+  s.addShape(deck.shapes.OVAL, { x: 7.05, y: y + 0.25, w: 0.3, h: 0.3, fill: { color: col }, line: { type: "none" } });
   s.addText(h, { x: 7.5, y: y + 0.18, w: 5.0, h: 0.4, fontSize: 16, bold: true, color: C.text1, margin: 0, isTextBox: true });
   s.addText(b, { x: 7.5, y: y + 0.58, w: 5.0, h: 0.75, fontSize: 13, color: C.text2, margin: 0, valign: "top", isTextBox: true });
 });
 
 // ================= 13. Video: array =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
 s.addText("Watch: 400 robots at 1200 Hz physics, 393 hold the ball", { placeholder: "title" });
 video(s, "array", M, 1.45, 7.4, "10 × 10 slice of the 400-robot run, 5× slow motion", "18 s");
 card(s, 8.4, 1.45, 4.3, 4.8);
@@ -345,7 +345,7 @@ s.addText([
 ], { x: 8.7, y: 1.7, w: 3.8, h: 4.4, fontSize: 14, color: C.text2, margin: 0, valign: "top", paraSpaceAfter: 4, isTextBox: true });
 
 // ================= 14. Video: failures =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Results" });
 s.addText("Watch: the 7 failures fall into two modes", { placeholder: "title" });
 s.addText("A · Late contact: ball ~2 cm farther, slides off the lip", { x: M, y: 1.35, w: 6.0, h: 0.4, fontSize: 15, bold: true, color: C.accent3, margin: 0, isTextBox: true });
 s.addText("B · Lifted to ~43 cm, thrown out of the pocket side", { x: M + 6.15, y: 1.35, w: 6.0, h: 0.4, fontSize: 15, bold: true, color: C.accent5, margin: 0, isTextBox: true });
@@ -366,8 +366,8 @@ s.addText("Fix idea: slow down the end of the lift, or add a final tilt that cra
 s.addNotes("Close-ups at 1200 Hz physics, 5× slow motion. Mode A is a timing problem caused by the ball being a little farther than planned; mode B is a containment problem after a successful pick-up.");
 
 // ================= 15. Torque at impact (sim) =================
-pres.addSection({ title: "Torque" });
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Torque" });
+deck.addSection({ title: "Torque" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Torque" });
 s.addText("In simulation, ball impact shows up clearly in the arm torque", { placeholder: "title" });
 s.addImage({ path: IMG("torque_impact.png"), x: M, y: 1.4, w: 7.6, h: 7.6 * 630 / 1200, objectName: "torque-plot" });
 card(s, 8.5, 1.45, 4.2, 4.9);
@@ -382,7 +382,7 @@ caption(s, "Applied joint torque = PD + gravity/press feed-forward, from the bes
 s.addNotes("From best_run_wheels/trajectory_record.npz. The torque includes the PD response to the stick being pushed by the ball. This is one run, recorded at the control rate, so the true peak may be higher and shorter.");
 
 // ================= 16. Is torque-based learning a good idea? =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Torque" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Torque" });
 s.addText("Torque as an observation: helps with timing, not with lateral aim", { placeholder: "title" });
 const cols = [
   ["Where torque helps", C.accent2, [
@@ -399,7 +399,7 @@ const cols = [
 cols.forEach(([h, col, items], i) => {
   const x = M + i * 4.1, y = 1.45, w = 3.85;
   card(s, x, y, w, 5.0);
-  s.addShape(pres.shapes.OVAL, { x: x + 0.25, y: y + 0.3, w: 0.3, h: 0.3, fill: { color: col }, line: { type: "none" } });
+  s.addShape(deck.shapes.OVAL, { x: x + 0.25, y: y + 0.3, w: 0.3, h: 0.3, fill: { color: col }, line: { type: "none" } });
   s.addText(h, { x: x + 0.7, y: y + 0.2, w: w - 0.9, h: 0.5, fontSize: 17, bold: true, color: C.text1, margin: 0, valign: "middle", isTextBox: true });
   const runs = [];
   items.forEach(([a, b], j) => {
@@ -408,7 +408,7 @@ cols.forEach(([h, col, items], i) => {
   });
   s.addText(runs, { x: x + 0.25, y: y + 0.9, w: w - 0.5, h: 4.0, fontSize: 13, margin: 0, valign: "top", isTextBox: true });
 });
-s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 8.8, y: 1.45, w: 3.93, h: 5.0, fill: { color: C.text1 }, line: { type: "none" }, rectRadius: 0.08 });
+s.addShape(deck.shapes.ROUNDED_RECTANGLE, { x: 8.8, y: 1.45, w: 3.93, h: 5.0, fill: { color: C.text1 }, line: { type: "none" }, rectRadius: 0.08 });
 s.addText([
   { text: "Recommendation", options: { bold: true, fontSize: 18, color: C.accent1, breakLine: true } },
   { text: "Yes, worth doing, in this order:", options: { breakLine: true, paraSpaceAfter: 8 } },
@@ -420,7 +420,7 @@ s.addText([
 s.addNotes("Torque feedback is a good idea for one specific kind of base error: where along the path the ball is met, which covers ball distance and speed errors. It does not tell the robot about sideways or heading error, which is the biggest current limit; that needs vision before contact. A simple threshold trigger should be tried before learning, because it is easy to test on hardware and it gives a baseline for any learned policy.");
 
 // ================= 17. Next week: measurement plan =================
-s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Torque" });
+s = deck.addSlide({ masterName: "CONTENT", sectionTitle: "Torque" });
 s.addText("Next week: can we see the impact peak on the real motors?", { placeholder: "title" });
 [
   ["Log at high rate", "Record MIT feedback (position, velocity, torque / current) at ≥ 500 Hz, with the same Kp / Kd and gravity feed-forward as in sim."],
@@ -448,8 +448,8 @@ s.addText([
 s.addNotes("If the peak is clearly visible, the next sim step is the contact-triggered lift with a torque-noise model taken from these logs. If it is buried in noise, we look at filtering, higher Kp during the approach, or a different contact signal (e.g. velocity error).");
 
 // ================= 18. Next directions =================
-pres.addSection({ title: "Next" });
-s = pres.addSlide({ masterName: "DARK_CONTENT", sectionTitle: "Next" });
+deck.addSection({ title: "Next" });
+s = deck.addSlide({ masterName: "DARK_CONTENT", sectionTitle: "Next" });
 s.addText("Possible next directions", { placeholder: "title" });
 [
   ["Torque-triggered scoop", "Measure real impact torque, then lift on contact instead of at a fixed time. Targets failure mode A and ball-distance error."],
@@ -470,7 +470,7 @@ s.addNotes("Item 1 starts next week with the torque measurement. Items 1 and 2 a
 
 (async () => {
   const out = path.join(__dirname, "robomaster_lacrosse_scoop_progress_v2.pptx");
-  await pres.writeFile({ fileName: out });
+  await deck.writeFile({ fileName: out });
   await applyTheme(out, THEME);
   console.log("wrote", out);
 })();
