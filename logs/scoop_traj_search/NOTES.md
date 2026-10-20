@@ -134,3 +134,14 @@ work). Results `grid_kp500_el*.json`.
 - Next (user plan): measure real MIT motor torque at impact (>=500 Hz log, no-ball baselines, 0.5/0.9 m/s with ball,
   static calibration with the ball). Then contact-triggered lift in sim (torque threshold), residual RL with torque
   history only if needed. Torque does not help lateral/heading misalignment -> needs vision.
+
+## 2026-10-20: demo, colored stick, animated USD
+- Demo (GUI, loops rounds): `./isaaclab.sh -p scripts/demos/robomaster_lacrosse_scoop.py [--grid 10 --speed 0.25]`.
+  Headless 4x100 robots: 97.8% (colored) vs 97.5% (grey USD) -> coloring has no physics effect.
+- Animated USD: `--viz none --speed 100 --rounds 3 --save_usd ~/lacrosse_demo/scoop_array_anim.usd` (64 robots, 720
+  frames, 24 MB); play with `scripts/demos/play_usd_animation.py --usd ...` or Isaac Sim File > Open + Play. Physics
+  schemas must be REMOVED (not just disabled) or PhysX keeps the body transforms in Fabric and the robots freeze.
+- Stick colors: `color_stick_usd.py --model_dir <extracted Nike rar>` binds MTL materials + diffuse textures
+  (`stick_textures/`) to both long-stick USDs. The robot USDs are gitignored (*.usd) -> committed with `git add -f`.
+- Env issue since ~10-17: torch cu130 cannot find libnvrtc-builtins.so.13.0 (in env_isaaclab/.../nvidia/cu13/lib);
+  demo preloads it, other scripts need LD_LIBRARY_PATH=<that dir>.
