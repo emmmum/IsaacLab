@@ -117,3 +117,18 @@ work). Results `grid_kp500_el*.json`.
 - Mesh (ellipsoid) ball: rests 2-5 mm into the floor (exact sphere 0.0 mm) and a ROUND mesh ball already drops to 85%
   -> PhysX convex-mesh contact artifact; ellipsoid results (64-78%) are not trustworthy. Marked experimental in cfg.
 - Isaac Lab bug worked around: RigidObject.set_coms_index fails (float32 vs transformf buffer) -> set via root_view.
+
+## 2026-10-20: 400-robot run, failure modes, impact torque, slides
+- `render_array.py` (400 robots, 1200 Hz physics, 60 Hz control, ball dx +-3 cm / dy +-1 cm, robust trajectory):
+  393/400 = 98.3% (`array_stats.json`, `failure_record.log`). Two failure modes in `failure_closeups/`:
+  A = ball ~2.2-2.6 cm farther -> late contact, slides off the lip (#145, #203);
+  B = lifted to ~43 cm, then thrown out of the pocket side (#172, #307).
+- Impact torque in sim (`best_run_wheels/trajectory_record.npz`, applied torque, 60 Hz): first contact t=0.85 s,
+  step shoulder -0.64 / elbow +0.75 N m vs approach sigma 0.006 / 0.04; lasts 1-2 samples. Lift start at 0.9 s gives
+  3.5-3.9 N m, which would hide a late contact. Plot `deck_img/torque_impact.png`. Sim net/stick are rigid -> real peak
+  likely smaller/smoother.
+- Slides: `robomaster_lacrosse_scoop_progress_v2.pptx` (build script `build2.js`, video Drive links in `links.json`,
+  empty until the user sends them; rebuild needs pptxgenjs).
+- Next (user plan): measure real MIT motor torque at impact (>=500 Hz log, no-ball baselines, 0.5/0.9 m/s with ball,
+  static calibration with the ball). Then contact-triggered lift in sim (torque threshold), residual RL with torque
+  history only if needed. Torque does not help lateral/heading misalignment -> needs vision.
