@@ -6,7 +6,7 @@
 """Demo: an array of RoboMaster robots scooping lacrosse balls with the robust open-loop trajectory.
 
 Opens the Isaac Sim window with an N x N grid of robots. Every round, each robot gets a ball about 1 m ahead (with a
-small random offset), drives at it, scoops it and holds it up; then all robots reset and the next round starts. The
+small random offset, centered on the stick head, which sits 1.6 cm left of the robot's center line), drives at it, scoops it and holds it up; then all robots reset and the next round starts. The
 number of robots holding their ball is printed after every round. Close the window or press Ctrl+C to stop.
 
 All realistic uncertainty of the task config is on (base slip and acceleration limit, latency, contact parameters).
@@ -211,7 +211,7 @@ def main(env_cfg, agent_cfg):
             # ball about 1 m ahead of each robot, small random offset inside the alignment tolerance
             pose = env.ball.data.root_pose_w.torch.clone()
             pose[:, 0] = origins[:, 0] + BALL_X + (torch.rand(n, device=dev) * 2 - 1) * args.ball_dx
-            pose[:, 1] = origins[:, 1] + (torch.rand(n, device=dev) * 2 - 1) * args.ball_dy
+            pose[:, 1] = origins[:, 1] + cfg.ball_spawn_y_center + (torch.rand(n, device=dev) * 2 - 1) * args.ball_dy
             pose[:, 2] = origins[:, 2] + cfg.ball_radius
             env.ball.write_root_pose_to_sim_index(root_pose=pose)
             env._ball_spawn_pos[:] = pose[:, :3] - origins

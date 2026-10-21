@@ -185,3 +185,12 @@ work). Results `grid_kp500_el*.json`.
   window is centered near +1.5 cm. Aiming the robot ~1.5 cm to the right of the ball should widen the usable lateral
   tolerance to about +-2.5 cm (cause not checked yet: pocket/lip geometry or stick mount offset). Distance: open loop
   holds -15..+3 cm; the RL/BC policies extend the far side to about +7..+9 cm.
+
+## 2026-10-21: ball centered on the stick head (user)
+- The stick head is not on the robot's center line: lip / pocket at y = +0.016 m (STICK_LIP_OFFSET[1]). User: place
+  balls in front of the stick head, not the robot. New cfg `ball_spawn_y_center = STICK_LIP_OFFSET[1]` (default); the
+  y spawn range is now relative to it. Demo, render_array.py and heatmap_scoop.py follow it. Older results (and the
+  grid searches / alignment numbers above) were relative to the robot's center line.
+- Stick-centered (`heatmap/heatmap_stick_centered.png`): symmetric. Open loop 100% for lateral -2..+2 cm over
+  distance -15..+3 cm; 8192/8192 within 1 cm. Residual B (trained robot-centered) also symmetric, 100% for -2..+2 cm
+  over -15..+7 cm.

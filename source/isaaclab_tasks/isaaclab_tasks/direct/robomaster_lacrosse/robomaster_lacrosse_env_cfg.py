@@ -191,7 +191,10 @@ class RobomasterLacrosseEnvCfg(DirectRLEnvCfg):
     # ball spawn randomization (relative to robot base, on the ground): about 1 m ahead, both robot and ball at
     # rest, so the robot has to build up scooping speed itself (the head's front lip is at x ~= 0.51 m)
     ball_spawn_x_range = (0.8, 1.2)
+    # lateral spawn range around ball_spawn_y_center; the stick head is not on the robot's center line (its lip is
+    # STICK_LIP_OFFSET[1] = 1.6 cm to the left), so balls are centered on the stick head by default
     ball_spawn_y_range = (-0.15, 0.15)
+    ball_spawn_y_center = STICK_LIP_OFFSET[1]  # [m]
 
     # initial base velocity (body frame), sampled every episode
     base_init_vel_x_range = (0.0, 0.0)  # [m/s]

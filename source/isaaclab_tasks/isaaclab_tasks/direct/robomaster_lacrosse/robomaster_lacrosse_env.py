@@ -607,5 +607,7 @@ class RobomasterLacrosseEnv(DirectRLEnv):
 
         # randomize ball position on the floor, in front of the robot
         x = sample_uniform(self.cfg.ball_spawn_x_range[0], self.cfg.ball_spawn_x_range[1], (num_resets,), self.device)
-        y = sample_uniform(self.cfg.ball_spawn_y_range[0], self.cfg.ball_spawn_y_range[1], (num_resets,), self.device)
+        y = self.cfg.ball_spawn_y_center + sample_uniform(
+            self.cfg.ball_spawn_y_range[0], self.cfg.ball_spawn_y_range[1], (num_resets,), self.device
+        )
         self.place_ball(env_ids, x, y)

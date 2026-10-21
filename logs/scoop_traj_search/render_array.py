@@ -99,7 +99,7 @@ def main(env_cfg, agent_cfg):
         dy = (torch.rand(n, device=dev) * 2 - 1) * a.ball_dy
         ball_pose = env.ball.data.root_pose_w.torch.clone()
         ball_pose[:, 0] = o[:, 0] + BALL_X + dx
-        ball_pose[:, 1] = o[:, 1] + dy
+        ball_pose[:, 1] = o[:, 1] + c.ball_spawn_y_center + dy
         ball_pose[:, 2] = o[:, 2] + c.ball_radius
         env.ball.write_root_pose_to_sim_index(root_pose=ball_pose)
         env._ball_spawn_pos[:] = ball_pose[:, :3] - o

@@ -64,7 +64,8 @@ def main(env_cfg, agent_cfg):
         bx = torch.tensor(gx.flatten(), dtype=torch.float32, device=dev)[cell]
         by = torch.tensor(gy.flatten(), dtype=torch.float32, device=dev)[cell]
         u.reset()
-        u.place_ball(torch.arange(u.num_envs, device=dev), bx, by)
+        # lateral grid is relative to the stick head (ball_spawn_y_center), not the robot's center line
+        u.place_ball(torch.arange(u.num_envs, device=dev), bx, by + u.cfg.ball_spawn_y_center)
         obs = env.get_observations()
         success = torch.zeros(u.num_envs, dtype=torch.bool, device=dev)
         finished = torch.zeros(u.num_envs, dtype=torch.bool, device=dev)
