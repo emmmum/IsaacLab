@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-
+sim/IsaacLab/blob/main/CONTRIBUTORS.md). # All rights reserved. # # SPDX-License-Identifier: BSD-3-Clause
+
 """Demo: an array of RoboMaster robots scooping lacrosse balls with the robust open-loop trajectory.
 
 Opens the Isaac Sim window with an N x N grid of robots. Every round, each robot gets a ball about 1 m ahead (with a
