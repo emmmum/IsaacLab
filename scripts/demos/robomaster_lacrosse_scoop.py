@@ -3,14 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-
-sim/IsaacLab/blob/main/CONTRIBUTORS.md). # All rights reserved. # # SPDX-License-Identifier: BSD-3-Clause
-
 """Demo: an array of RoboMaster robots scooping lacrosse balls with the robust open-loop trajectory.
 
 Opens the Isaac Sim window with an N x N grid of robots. Every round, each robot gets a ball about 1 m ahead (with a
-small random offset, centered on the stick head, which sits 1.6 cm left of the robot's center line), drives at it, scoops it and holds it up; then all robots reset and the next round starts. The
-number of robots holding their ball is printed after every round. Close the window or press Ctrl+C to stop.
+small random offset, centered on the stick head, which sits 1.6 cm left of the robot's center line), drives at it,
+scoops it and holds it up; then all robots reset and the next round starts. The number of robots holding their ball
+is printed after every round. Close the window or press Ctrl+C to stop.
 
 All realistic uncertainty of the task config is on (base slip and acceleration limit, latency, contact parameters).
 
