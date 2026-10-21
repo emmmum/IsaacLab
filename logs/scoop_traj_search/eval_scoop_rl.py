@@ -29,6 +29,7 @@ p.add_argument("--episodes", type=int, default=2, help="episodes per env")
 p.add_argument("--checkpoint", default="", help="RSL-RL model_*.pt")
 p.add_argument("--zero", action="store_true", help="evaluate the zero residual (open-loop trajectory)")
 p.add_argument("--label", default="")
+p.add_argument("--stochastic", action="store_true", help="sample actions with the policy's noise (as in training)")
 p.add_argument("--trace", default="", help="save the first episode's per-step mean signals to this .npz")
 add_launcher_args(p)
 a, rem = setup_preset_cli(p)
@@ -55,6 +56,9 @@ def main(env_cfg, agent_cfg):
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
             runner.load(a.checkpoint)
             policy = runner.get_inference_policy(device=env.unwrapped.device)
+            if a.stochastic:
+                def policy(obs):
+                    return runner.alg.actor(obs, stochastic_output=True)
         u = env.unwrapped
         u.reset()
         obs = env.get_observations()

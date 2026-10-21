@@ -15,7 +15,8 @@ OBS_TERM_DIMS = {
     "phase": 1,  # elapsed episode time / episode length
     "arm_vel": 2,  # shoulder, elbow velocity [rad/s]
     "arm_torque": 2,  # applied shoulder, elbow torque [N*m] (what the MIT motors report)
-    "base_vel": 1,  # chassis forward speed [m/s] (wheel odometry)
+    "base_vel": 1,  # measured chassis forward speed [m/s] (inaccurate, see base_obs_*)
+    "base_dist": 1,  # odometry: distance driven since the episode start [m], integrated from the measured speed
 }
 
 
@@ -37,10 +38,22 @@ class RobomasterLacrosseScoopRLEnvCfg(RobomasterLacrosseEnvCfg):
     traj_t_brake = 1.0  # [s] stop driving this long after the lift starts
     traj_press_elbow = -1.0  # [N*m] elbow feed-forward pressing the lip down before the lift
 
+    # True: action = nominal trajectory + residual. False: the policy outputs the actions itself (forward-speed
+    # action in [-1, 1] -> 0..base_lin_vel_scale, shoulder / elbow lift increment as a fraction of arm_increment_max,
+    # <= 0 holds the arm); the trajectory then only provides the behavior-cloning labels (see the env's expert_action)
+    residual = True
+    # BC label for "do not lift": any value <= 0 holds the arm, a margin keeps small regression errors from lifting it
+    bc_hold_label = -0.5
+
     # residual scales: action 1.0 changes the forward speed by this much [m/s] / the lift increment by this
     # fraction of arm_increment_max per step (the nominal lift uses rate * dt / arm_increment_max = 0.33)
     residual_speed_scale = 0.2
     residual_arm_scale = 0.33
+
+    # the chassis measurements are not accurate (unlike the arm encoders): per-episode scale error on the measured
+    # speed plus white noise; the odometry distance integrates the measured speed, so its error grows with time
+    base_obs_scale_range = (0.9, 1.1)
+    base_obs_vel_noise_std = 0.05  # [m/s]
 
     rew_success = 1.0
     success_hold_s = 1.0  # [s] the ball must be in the net for this long at the end of the episode

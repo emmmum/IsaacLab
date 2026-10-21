@@ -47,6 +47,9 @@ class RobomasterLacrosseScoopRLEnv(RobomasterLacrosseEnv):
         self._hold_steps = int(round(self.cfg.success_hold_s / self.step_dt))
         self._d_max = torch.tensor([[self.cfg.traj_d_shoulder, self.cfg.traj_d_elbow]], device=self.device)
         self._success_ema = 0.0
+        self._base_obs_scale = torch.ones(self.num_envs, device=self.device)
+        self._base_vel_meas = torch.zeros(self.num_envs, device=self.device)
+        self._base_dist_meas = torch.zeros(self.num_envs, device=self.device)
 
     def nominal_action(self) -> torch.Tensor:
         """Action of the open-loop trajectory at the current step, in the base env's 5-D action space."""
@@ -61,8 +64,27 @@ class RobomasterLacrosseScoopRLEnv(RobomasterLacrosseEnv):
         self._arm_ff_extra[:, 1] = torch.where(t < c.traj_t_lift, c.traj_press_elbow, 0.0)
         return act
 
+    def expert_action(self) -> torch.Tensor:
+        """Action of the open-loop trajectory in the policy's action space (the behavior-cloning label).
+
+        Zero in residual mode. Otherwise (forward speed, shoulder, elbow), with ``bc_hold_label`` wherever the
+        trajectory does not lift a joint. Call it before stepping: it reads the current step's time and arm target.
+        """
+        if self.cfg.residual:
+            return torch.zeros(self.num_envs, 3, device=self.device)
+        nominal = self.nominal_action()[:, [0, 3, 4]]
+        arm = nominal[:, 1:]
+        nominal[:, 1:] = torch.where(arm > 0.0, arm, torch.full_like(arm, self.cfg.bc_hold_label))
+        return nominal
+
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         c = self.cfg
+        if not c.residual:
+            act = torch.zeros(self.num_envs, 5, device=self.device)
+            act[:, [0, 3, 4]] = actions.clamp(-1.0, 1.0)
+            self.nominal_action()  # keeps the lip press-down feed-forward of the trajectory (time-scheduled)
+            super()._pre_physics_step(act)
+            return
         residual = actions.clamp(-1.0, 1.0)
         act = self.nominal_action()
         # forward-only base: action a maps to speed 0.5 * (a + 1) * base_lin_vel_scale
@@ -74,6 +96,11 @@ class RobomasterLacrosseScoopRLEnv(RobomasterLacrosseEnv):
         super()._pre_physics_step(act)
 
     def _get_observations(self) -> dict:
+        # inaccurate chassis odometry (only used by the base_vel / base_dist terms)
+        vx = self.robot.data.root_lin_vel_b.torch[:, 0]
+        noise = torch.randn_like(vx) * self.cfg.base_obs_vel_noise_std
+        self._base_vel_meas = self._base_obs_scale * vx + noise
+        self._base_dist_meas += self._base_vel_meas * self.step_dt
         terms = []
         for name in self.cfg.obs_terms:
             if name == "arm_pos":
@@ -86,7 +113,9 @@ class RobomasterLacrosseScoopRLEnv(RobomasterLacrosseEnv):
             elif name == "arm_torque":
                 terms.append(self.robot.data.applied_torque.torch[:, self._arm_joint_idx])
             elif name == "base_vel":
-                terms.append(self.robot.data.root_lin_vel_b.torch[:, :1])
+                terms.append(self._base_vel_meas[:, None])
+            elif name == "base_dist":
+                terms.append(self._base_dist_meas[:, None])
         obs = torch.cat(terms, dim=-1)
         obs = torch.nan_to_num(obs, nan=0.0, posinf=0.0, neginf=0.0).clamp(-100.0, 100.0)
         return {"policy": obs}
@@ -108,3 +137,8 @@ class RobomasterLacrosseScoopRLEnv(RobomasterLacrosseEnv):
     def _reset_idx(self, env_ids):
         super()._reset_idx(env_ids)
         self._in_net_streak[env_ids] = 0.0
+        self._base_obs_scale[env_ids] = torch.empty(len(env_ids), device=self.device).uniform_(
+            *self.cfg.base_obs_scale_range
+        )
+        self._base_vel_meas[env_ids] = 0.0
+        self._base_dist_meas[env_ids] = 0.0

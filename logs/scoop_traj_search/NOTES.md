@@ -161,3 +161,17 @@ work). Results `grid_kp500_el*.json`.
   (open loop 38 deg) -- nearly the same motion at 1.00 and 1.08 m, so most of the gain is a better open-loop motion
   (phase alone gets to 92.7%); torque adds ~4 points, mostly on the farthest balls. Angles-only obs is worse than no
   RL (pre-lift angles are ~constant; normalized noise?). Torque in sim is noise-free -> randomize before trusting.
+
+## 2026-10-21: behavior cloning (pure MLP) + PPO fine-tune
+- `env.residual=False`: the MLP outputs (speed, shoulder, elbow) directly. BC labels = trajectory actions, "hold"
+  label -0.5 (any <= 0 holds the monotonic arm, margin against regression error). `bc_scoop.py`: 2 expert episodes x
+  4096 envs (~2M samples), MSE 60 epochs on the PPO actor (+ normalizer), std 0.1, saved as model_0.pt; fine-tune with
+  `train.py --resume --load_run <bc run> --checkpoint model_0.pt env.residual=False ...`.
+- Chassis obs added (inaccurate on purpose): base_vel = vx * U(0.9, 1.1) per episode + N(0, 0.05) m/s; base_dist =
+  integral of that.
+- Results, ball x 0.9-1.1, deterministic (open loop 78%):
+  | obs | BC | BC+PPO |
+  | arm_pos + phase | 84.0% | 96.2% at it 100 (it 25: 94.9%), then PPO collapsed at ~it 130 -> 57-62% at it 299 |
+  | + base_vel + base_dist (noisy) | 63.8% | 62.9% at it 299 (training success still rising slowly) |
+- Takeaways: BC reproduces the trajectory; BC+PPO matches the best residual policy (96%) but needs a smaller step
+  (lower lr / desired_kl) or checkpoint selection; noisy chassis inputs hurt both cloning and fine-tuning.
