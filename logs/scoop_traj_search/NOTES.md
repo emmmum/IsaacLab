@@ -194,3 +194,17 @@ work). Results `grid_kp500_el*.json`.
 - Stick-centered (`heatmap/heatmap_stick_centered.png`): symmetric. Open loop 100% for lateral -2..+2 cm over
   distance -15..+3 cm; 8192/8192 within 1 cm. Residual B (trained robot-centered) also symmetric, 100% for -2..+2 cm
   over -15..+7 cm.
+
+## 2026-10-21: uneven floor (polygon terrain), ball settles first, rolling resistance
+- `env.rough_floor=True` (`rough_floor.py`): per env one 3.2 x 1.0 m triangle-mesh tile (4 cm grid) = smooth random
+  bumps + planar tilt; 8 levels, level k = k/7 of max (defaults for a lab floor: 1 mm RMS bumps, 0.15 m correlation,
+  0.3 deg tilt). Startup: each env's ball dropped 6x near its tile center, simulated 1.5 s, positions where it rests
+  (< 3 mm/s, inside the tile) kept; each episode the ball is put at one of them and the robot 1 m behind it (stick head
+  aligned), height/roll/pitch fitted to the floor under its wheels. Success uses the floor height under the ball.
+- Rolling resistance (all floors): torque 0.015 * m g r against the ball's rolling while it touches the floor
+  (PhysX has none; without it balls never came to rest on any slope). Flat-floor open loop unchanged (4083/4096).
+- Performance lessons: (1) envs must not share a tile -- overlapping stick SDFs made 256 envs ~15x slower and broke
+  the physics; (2) one mesh per tile, not one huge mesh -- with a single mesh, 1024 envs were 36x slower than flat.
+  Now 4096 envs: 70 s vs 27 s per 4 s episode (2.6x), +2.5 min startup for settling, no contact-buffer overflow.
+- Open loop on the lab-floor levels (8192 episodes): L0 99.7, L1 98.0, L2 96.5, L3 95.7, L4 94.4, L5 93.5,
+  L6 92.2, L7 (1.0 mm, 0.3 deg) 91.8% -> overall 95.2%. Ball rests in >= 93% of drops even at L7.

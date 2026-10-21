@@ -122,6 +122,32 @@ class RobomasterLacrosseEnvCfg(DirectRLEnvCfg):
     floor_size = (3.5, 2.0, 0.1)  # [m] length (x), width (y), thickness
     floor_center_x = 1.0  # [m] platform center ahead of the robot start point
     floor_friction = 0.5
+    # Uneven floor (rough_floor = True; replaces the ground plane, excludes floor_tilt_max_deg): a triangle-mesh terrain
+    # of rough_levels difficulty rows x one tile per env (see rough_floor.py; envs must not share a tile: overlapping
+    # sticks make PhysX collide their SDFs pairwise, which is extremely slow); level k has k / (levels - 1) of the
+    # maximum bump height and tilt, and env e uses level e % rough_levels. The defaults aim at an indoor lab floor
+    # (sub-millimeter bumps, a few tenths of a degree of slope). At startup each env's ball is dropped at
+    # random points within rough_ball_region of its tile center and simulated until it comes to rest (several rounds);
+    # every episode then puts the ball at one of those rest positions and the robot behind it, so that the ball sits
+    # ball_spawn_x/y ahead of it (centered on the stick head), with the robot's height and roll/pitch fitted to the
+    # floor under its wheels.
+    rough_floor = False
+    rough_levels = 8
+    rough_tile_size = (3.2, 1.0)  # [m] length along the driving direction (x), width (y)
+    rough_spacing = 0.04  # [m] height-map / mesh resolution
+    rough_bump_rms_max = 0.001  # [m] RMS bump height at the top level
+    rough_bump_corr = 0.15  # [m] bump correlation length
+    rough_tilt_max_deg = 0.3  # [deg] tile tilt at the top level
+    rough_seed = 0
+    rough_ball_region = (0.3, 0.3)  # [m] half-size of the ball drop region around the tile center
+    rough_settle_rounds = 6
+    rough_settle_s = 1.5  # [s] simulated per drop round
+    rough_rest_speed = 0.003  # [m/s] a ball slower than this at the end of a round counts as at rest
+    # Rolling resistance of the ball on the floor (PhysX has none, so a ball on any slope would roll forever): while the
+    # ball touches the floor, a torque of ball_rolling_resistance * m * g * r opposes its rolling, smoothed by
+    # tanh(|omega| / ball_rolling_omega0). A ball then stays put on slopes below ~asin(resistance).
+    ball_rolling_resistance = 0.015
+    ball_rolling_omega0 = 0.05  # [rad/s]
     # Imperfect ball: mass and CoM offset are sampled once per env at startup (the ball is placed resting CoM-down);
     # vary the size with ball_radius + ball_cfg.spawn.radius. EXPERIMENTAL: "ellipsoid" spawns an icosphere mesh scaled
     # by ball_ellipsoid_scale, but PhysX convex-mesh contact lets it rest 2-5 mm into the floor and even a round mesh
@@ -154,6 +180,9 @@ class RobomasterLacrosseEnvCfg(DirectRLEnvCfg):
     # cylinder wheels cannot strafe. "root_velocity": legacy mode that overwrites the root velocity every physics step.
     base_drive = "wheels"
     wheel_radius = 0.0512  # [m]
+    # exact cylinder wheel colliders (PhysX custom geometry, contacts computed on the CPU); False uses the convex
+    # approximation
+    exact_cylinder_wheels = True
     wheel_joint_names = ["RevoluteJoint", "RevoluteJoint_0", "RevoluteJoint_1", "RevoluteJoint_2"]
     arm_joint_names = ["RevoluteJoint1", "RevoluteJoint2"]
 

@@ -25,6 +25,7 @@ from isaaclab.utils.math import (
 )
 
 from .robomaster_lacrosse_env_cfg import STICK_ELBOW_OFFSET, STICK_LIP_OFFSET, STICK_POCKET_OFFSET
+from .rough_floor import HeightMap, height_map_to_mesh, make_rough_floor
 
 if TYPE_CHECKING:
     from .robomaster_lacrosse_env_cfg import RobomasterLacrosseEnvCfg
@@ -48,6 +49,7 @@ class RobomasterLacrosseEnv(DirectRLEnv):
             rel_w = self.robot.data.body_pos_w.torch[0, wheel_body_ids] - self.robot.data.root_pos_w.torch[0]
             rel_b = quat_apply_inverse(self.robot.data.root_quat_w.torch[0].expand(4, -1), rel_w)
             self._wheel_y = rel_b[:, 1].clone()
+            self._wheel_xy = rel_b[:, :2].clone()  # rear_left, rear_right, front_left, front_right
         self._lowerarm_body_idx, _ = self.robot.find_bodies("lowerarm")
         self._lowerarm_body_idx = self._lowerarm_body_idx[0]
 
@@ -87,6 +89,9 @@ class RobomasterLacrosseEnv(DirectRLEnv):
         self._floor_normal[:, 2] = 1.0
         self._randomize_materials()
         self._randomize_ball_inertia()
+        self._ball_body_ids = torch.tensor([0], dtype=torch.int32, device=self.device)
+        if self.cfg.rough_floor:
+            self._settle_ball_pool()
 
     def _set_real_base_mass(self):
         """Set the shoulder motor mass and scale the chassis so the base totals `base_total_mass`."""
@@ -196,7 +201,9 @@ class RobomasterLacrosseEnv(DirectRLEnv):
         # that rolls bumpily
         import carb
 
-        carb.settings.get_settings().set_bool("/physics/collisionCylinderCustomGeometry", True)
+        carb.settings.get_settings().set_bool(
+            "/physics/collisionCylinderCustomGeometry", self.cfg.exact_cylinder_wheels
+        )
         self.robot = Articulation(self.cfg.robot_cfg)
         if self.cfg.ball_shape == "ellipsoid":
             sp = self.cfg.ball_cfg.spawn
@@ -235,6 +242,8 @@ class RobomasterLacrosseEnv(DirectRLEnv):
             self.floor = RigidObject(floor_cfg)
             # keep the global ground out of the way, below the platforms
             spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -0.2))
+        elif self.cfg.rough_floor:
+            self._create_rough_floor()
         else:
             spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
 
@@ -278,8 +287,144 @@ class RobomasterLacrosseEnv(DirectRLEnv):
                 UsdPhysics.MeshCollisionAPI.Apply(child).GetApproximationAttr().Set("convexHull")
                 PhysxSchema.PhysxConvexHullCollisionAPI.Apply(child).CreateHullVertexLimitAttr(255)
 
+    def _create_rough_floor(self):
+        """Build the uneven-floor mesh (see rough_floor.py) and give every env a tile center as its origin."""
+        from types import SimpleNamespace
+
+        from isaaclab.terrains.utils import create_prim_from_mesh
+
+        c = self.cfg
+        assert c.floor_tilt_max_deg == 0.0, "rough_floor and floor_tilt_max_deg are exclusive"
+        assert c.base_drive == "wheels", "rough_floor places the robot on its wheels"
+        tiles = -(-self.scene.num_envs // c.rough_levels)  # one tile per env
+        floor = make_rough_floor(
+            c.rough_levels, tiles, c.rough_tile_size, c.rough_spacing, c.rough_bump_rms_max,
+            c.rough_bump_corr, c.rough_tilt_max_deg, c.rough_seed,
+        )  # fmt: skip
+        # one small mesh per tile: contact generation against a single huge mesh scales with its size
+        h, sp = floor["heights"], floor["spacing"]
+        nx_t, ny_t = round(c.rough_tile_size[0] / sp), round(c.rough_tile_size[1] / sp)
+        visual = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.22, 0.22, 0.24))
+        material = sim_utils.RigidBodyMaterialCfg(
+            static_friction=c.floor_friction, dynamic_friction=c.floor_friction, restitution=0.0
+        )
+        for i in range(c.rough_levels):
+            for j in range(tiles):
+                tile_h = h[i * nx_t : (i + 1) * nx_t + 1, j * ny_t : (j + 1) * ny_t + 1]
+                mesh = height_map_to_mesh(tile_h, floor["x0"] + i * nx_t * sp, floor["y0"] + j * ny_t * sp, sp)
+                create_prim_from_mesh(
+                    f"/World/ground/tile_{i}_{j}", mesh, visual_material=visual, physics_material=material
+                )
+        self._height_map = HeightMap(floor["heights"], floor["x0"], floor["y0"], floor["spacing"], self.device)
+        n = self.scene.num_envs
+        env_ids = torch.arange(n, device=self.device)
+        self._floor_level = env_ids % c.rough_levels
+        tile = env_ids // c.rough_levels
+        centers = torch.tensor(floor["centers"], dtype=torch.float32, device=self.device)
+        self._floor_level_frac = torch.tensor(floor["level_frac"], dtype=torch.float32, device=self.device)[
+            self._floor_level, tile
+        ]
+        # the scene reports env origins from its terrain; envs sharing a tile overlap but do not collide
+        self.scene._terrain = SimpleNamespace(
+            env_origins=centers[self._floor_level, tile], has_debug_vis_implementation=False
+        )
+
+    def _settle_ball_pool(self):
+        """Drop each env's ball at random points near its tile center and keep the positions where it came to rest."""
+        c, n, dev = self.cfg, self.num_envs, self.device
+        o = self.scene.env_origins
+        all_ids = torch.arange(n, device=dev)
+        pool = torch.zeros(n, c.rough_settle_rounds, 3, device=dev)
+        valid = torch.zeros(n, c.rough_settle_rounds, dtype=torch.bool, device=dev)
+        # park the robots well behind the drop region while the balls settle
+        park = self.robot.data.default_root_pose.torch.clone()
+        park[:, :3] += o
+        park[:, 0] -= 0.5 * c.rough_tile_size[0] - 0.25
+        park[:, 2] += self._height_map(park[:, 0], park[:, 1]) + 0.01
+        steps = int(round(c.rough_settle_s / self.physics_dt))
+        for r in range(c.rough_settle_rounds):
+            self.robot.write_root_pose_to_sim_index(root_pose=park)
+            self.robot.write_root_velocity_to_sim_index(root_velocity=torch.zeros(n, 6, device=dev))
+            self.robot.write_joint_position_to_sim_index(position=self.robot.data.default_joint_pos.torch.clone())
+            self.robot.write_joint_velocity_to_sim_index(
+                velocity=torch.zeros_like(self.robot.data.default_joint_vel.torch)
+            )
+            hx, hy = c.rough_ball_region
+            x = o[:, 0] + sample_uniform(-hx, hx, (n,), dev)
+            y = o[:, 1] + sample_uniform(-hy, hy, (n,), dev)
+            pose = self.ball.data.default_root_pose.torch.clone()
+            pose[:, 0], pose[:, 1] = x, y
+            pose[:, 2] = self._height_map(x, y) + c.ball_radius + 0.003
+            self.ball.write_root_pose_to_sim_index(root_pose=pose, env_ids=all_ids)
+            self.ball.write_root_velocity_to_sim_index(root_velocity=torch.zeros(n, 6, device=dev), env_ids=all_ids)
+            for _ in range(steps):
+                self._apply_ball_rolling_resistance()
+                self.scene.write_data_to_sim()
+                self.sim.step(render=False)
+                self.scene.update(dt=self.physics_dt)
+            pos = self.ball.data.root_pos_w.torch
+            speed = torch.linalg.norm(self.ball.data.root_lin_vel_w.torch, dim=-1)
+            rel = pos - o
+            # the robot behind the ball (about 1.5 m of travel) must stay on the tile
+            inside = (rel[:, 0].abs() < 0.5) & (rel[:, 1].abs() < 0.5 * c.rough_tile_size[1] - 0.2)
+            pool[:, r] = pos
+            valid[:, r] = (speed < c.rough_rest_speed) & inside & torch.isfinite(pos).all(-1)
+        # envs without any rest position keep their last one (reported below)
+        none = ~valid.any(-1)
+        valid[none, -1] = True
+        self._ball_pool, self._ball_pool_valid = pool, valid
+        rate = valid.float().mean(-1)
+        per_level = [f"{rate[self._floor_level == k].mean().item():.2f}" for k in range(c.rough_levels)]
+        print(f"[rough floor] ball rest fraction per level: {per_level}; envs with no rest position: {int(none.sum())}")
+
+    def _place_on_rough_floor(self, env_ids: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
+        """Ball at one of the env's rest positions, robot behind it so the ball is at env-local (x, y) of the robot."""
+        n, dev = len(env_ids), self.device
+        valid = self._ball_pool_valid[env_ids].float()
+        k = torch.multinomial(valid, 1).squeeze(-1)
+        ball_w = self._ball_pool[env_ids, k]
+        ball_pose = self.ball.data.default_root_pose.torch[env_ids].clone()
+        ball_pose[:, :3] = ball_w
+        self.ball.write_root_pose_to_sim_index(root_pose=ball_pose, env_ids=env_ids)
+        self.ball.write_root_velocity_to_sim_index(root_velocity=torch.zeros(n, 6, device=dev), env_ids=env_ids)
+        # robot heading +x; fit height, roll and pitch to the floor under the four wheels
+        rx, ry = ball_w[:, 0] - x, ball_w[:, 1] - y
+        wx, wy = rx[:, None] + self._wheel_xy[None, :, 0], ry[:, None] + self._wheel_xy[None, :, 1]
+        hw = self._height_map(wx.flatten(), wy.flatten()).reshape(n, 4)
+        left, right, front, rear = hw[:, [0, 2]], hw[:, [1, 3]], hw[:, [2, 3]], hw[:, [0, 1]]
+        track = (self._wheel_xy[[0, 2], 1] - self._wheel_xy[[1, 3], 1]).mean()
+        base = (self._wheel_xy[[2, 3], 0] - self._wheel_xy[[0, 1], 0]).mean()
+        roll = torch.atan((left.mean(-1) - right.mean(-1)) / track)
+        pitch = -torch.atan((front.mean(-1) - rear.mean(-1)) / base)
+        root = self.robot.data.default_root_pose.torch[env_ids].clone()
+        root[:, 0], root[:, 1] = rx, ry
+        root[:, 2] += hw.mean(-1) + 0.002
+        root[:, 3:7] = quat_from_euler_xyz(roll, pitch, torch.zeros_like(roll))
+        self.robot.write_root_pose_to_sim_index(root_pose=root, env_ids=env_ids)
+        self._ball_spawn_pos[env_ids] = ball_w - self.scene.env_origins[env_ids]
+
+    def _apply_ball_rolling_resistance(self):
+        """Torque opposing the ball's rolling while it touches the floor (call once per physics step)."""
+        c = self.cfg
+        if c.ball_rolling_resistance <= 0.0:
+            return
+        pos = self.ball.data.root_pos_w.torch
+        on_floor = (pos[:, 2] - self._floor_height(pos) - c.ball_radius) < 0.002
+        w = self.ball.data.root_ang_vel_w.torch.clone()
+        w[:, 2] = 0.0  # rolling is about horizontal axes; spin about the vertical is left alone
+        w_norm = torch.linalg.norm(w, dim=-1, keepdim=True)
+        mag = (
+            c.ball_rolling_resistance * c.ball_mass * 9.81 * c.ball_radius * torch.tanh(w_norm / c.ball_rolling_omega0)
+        )
+        torque = -mag * w / w_norm.clamp(min=1e-9) * on_floor[:, None].float()
+        self.ball.instantaneous_wrench_composer.add_forces_and_torques_index(
+            torques=torque[:, None, :], body_ids=self._ball_body_ids, is_global=True
+        )
+
     def _floor_height(self, pos_w: torch.Tensor) -> torch.Tensor:
         """World z of the floor surface under the given world positions (one per env)."""
+        if self.cfg.rough_floor:
+            return self._height_map(pos_w[:, 0], pos_w[:, 1])
         rel = pos_w - self.scene.env_origins
         n = self._floor_normal
         return self.scene.env_origins[:, 2] - (n[:, 0] * rel[:, 0] + n[:, 1] * rel[:, 1]) / n[:, 2]
@@ -352,6 +497,7 @@ class RobomasterLacrosseEnv(DirectRLEnv):
             self._arm_target = new_target
 
     def _apply_action(self) -> None:
+        self._apply_ball_rolling_resistance()
         # base (vx, vy, wz) command in the chassis frame. With `base_drive == "wheels"` it becomes wheel velocity
         # targets (skid steer, vy ignored); the legacy "root_velocity" mode writes it straight to the root body.
         cmd_scale = torch.tensor(
@@ -610,4 +756,7 @@ class RobomasterLacrosseEnv(DirectRLEnv):
         y = self.cfg.ball_spawn_y_center + sample_uniform(
             self.cfg.ball_spawn_y_range[0], self.cfg.ball_spawn_y_range[1], (num_resets,), self.device
         )
-        self.place_ball(env_ids, x, y)
+        if self.cfg.rough_floor:
+            self._place_on_rough_floor(env_ids, x, y)
+        else:
+            self.place_ball(env_ids, x, y)

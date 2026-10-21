@@ -67,6 +67,9 @@ def main(env_cfg, agent_cfg):
         edges = torch.linspace(0.9, 1.1, 6, device=u.device)
         bin_succ = torch.zeros(5, device=u.device)
         bin_done = torch.zeros(5, device=u.device)
+        rough = u.cfg.rough_floor
+        lvl_succ = torch.zeros(u.cfg.rough_levels, device=u.device)
+        lvl_done = torch.zeros(u.cfg.rough_levels, device=u.device)
         trace = {k: [] for k in ("q", "tau", "contact", "vx", "act")}
         with torch.inference_mode():
             for k in range(a.episodes * int(u.max_episode_length)):
@@ -85,6 +88,9 @@ def main(env_cfg, agent_cfg):
                 b = (torch.bucketize(spawn_x, edges) - 1).clamp(0, 4)
                 bin_done.index_add_(0, b, dones.float())
                 bin_succ.index_add_(0, b, (rew > 0).float())
+                if rough:
+                    lvl_done.index_add_(0, u._floor_level, dones.float())
+                    lvl_succ.index_add_(0, u._floor_level, (rew > 0).float())
         label = a.label or ("zero" if a.zero else a.checkpoint)
         print(f"EVAL {label}: {succ}/{done} = {100.0 * succ / max(done, 1):.1f}%")
         bins = " ".join(
@@ -93,6 +99,14 @@ def main(env_cfg, agent_cfg):
             if bin_done[i] > 0
         )
         print(f"BINS {label}: {bins}")
+        if rough:
+            c = u.cfg
+            levels = " ".join(
+                f"L{k}({1000 * c.rough_bump_rms_max * k / (c.rough_levels - 1):.2f}mm,"
+                f"{c.rough_tilt_max_deg * k / (c.rough_levels - 1):.2f}deg) {100.0 * lvl_succ[k] / lvl_done[k]:.1f}%"
+                for k in range(c.rough_levels)
+            )
+            print(f"LEVELS {label}: {levels}")
         if a.trace:
             import numpy as np
 
