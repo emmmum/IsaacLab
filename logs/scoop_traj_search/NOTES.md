@@ -175,3 +175,13 @@ work). Results `grid_kp500_el*.json`.
   | + base_vel + base_dist (noisy) | 63.8% | 62.9% at it 299 (training success still rising slowly) |
 - Takeaways: BC reproduces the trajectory; BC+PPO matches the best residual policy (96%) but needs a smaller step
   (lower lr / desired_kl) or checkpoint selection; noisy chassis inputs hurt both cloning and fine-tuning.
+
+## 2026-10-21: within 1 cm, and success heatmap over ball position
+- Ball x 0.99-1.01, y +-1 cm (8192 episodes): open loop 98.4%, residual C (angles+phase) 99.3%, BC+PPO it100
+  98.4%, residual B (angles+torque+phase) 100.0%.
+- `heatmap_scoop.py`: ball on a grid (distance -15..+15 cm in 2 cm, lateral -4..+4 cm in 1 cm), 28 runs per cell,
+  one synchronized episode. Plot `heatmap/heatmap_success_vs_ball_pos.png`.
+- Lateral tolerance is ASYMMETRIC: every method fails at -2..-4 cm (robot's right) but still works at +4 cm; the
+  window is centered near +1.5 cm. Aiming the robot ~1.5 cm to the right of the ball should widen the usable lateral
+  tolerance to about +-2.5 cm (cause not checked yet: pocket/lip geometry or stick mount offset). Distance: open loop
+  holds -15..+3 cm; the RL/BC policies extend the far side to about +7..+9 cm.
