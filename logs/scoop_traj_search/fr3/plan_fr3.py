@@ -56,6 +56,10 @@ p.add_argument(
 )
 p.add_argument("--clearance", type=float, default=0.02, help="minimum distance to the Husky body [m]")
 p.add_argument("--refine_rounds", type=int, default=2, help="local refinement rounds around the best candidates")
+p.add_argument(
+    "--start_lift", type=float, default=0.07,
+    help="also save a start pose with the hand this much higher (a compliant controller sets the head down from it)",
+)
 a = p.parse_args()
 torch.manual_seed(a.seed)
 dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -370,8 +374,18 @@ for i in score.argsort()[:5].tolist():
         f"husky clearance {100 * res['min_dist'][i]:.1f} cm  "
         + "  ".join(f"{k}={float(v[i]):.2f}" for k, v in cand.items())
     )
+# start pose with the stick lifted: the real head may sit lower than the model, so a compliant controller starts above
+# the floor and lets the head settle on it during the approach
+T_start = Tb[best] @ T_stick[0] @ Tg[best]
+T_start[2, 3] += a.start_lift
+q_start = Q[best, 0][None].clone()
+for _ in range(60):
+    q_start = ik_step(q_start, T_start[None], iters=1)
+err_start = pose_err(fk_tcp(q_start), T_start[None])[0, :3].norm().item()
+print(f"PLAN lifted start pose (+{100 * a.start_lift:.0f} cm): IK error {1000 * err_start:.2f} mm")
 np.savez(
     a.out,
+    q_start_lifted=q_start[0].cpu().numpy(),
     t=t_plan, phi=phi, dt=dt, q=Q[best].cpu().numpy(), qd=qd[best].cpu().numpy(),
     T_stick_ball=T_stick.cpu().numpy(), T_ball_in_base=Tb[best].cpu().numpy(), T_tcp_in_stick=Tg[best].cpu().numpy(),
     feasible=bool(ok[best]), vel_ratio=float(vel_ratio[best]), acc_ratio=float(acc_ratio[best]), **{k: float(v[best]) for k, v in cand.items()},

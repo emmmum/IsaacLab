@@ -25,6 +25,15 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 parser.add_argument("--plan", required=True, help="planner output with T_tcp_in_stick")
 parser.add_argument("--out", default="fr3_lacrosse.usd", help="output file name, next to this script")
+parser.add_argument(
+    "--bend_deg",
+    type=float,
+    default=0.0,
+    help="model error: the real stick's head is pitched by this much (rotation about the stick y axis at the throat)",
+)
+parser.add_argument(
+    "--shift", type=float, default=0.0, help="model error: the real stick sits this far further out [m]"
+)
 args = parser.parse_args()
 app = AppLauncher(headless=True).app
 
@@ -82,6 +91,14 @@ T_tcp_in_stick = np.load(args.plan)["T_tcp_in_stick"].astype(float)
 T_hand_tcp = np.eye(4)
 T_hand_tcp[2, 3] = HAND_TO_TCP
 T_hand_stick = T_hand_tcp @ np.linalg.inv(T_tcp_in_stick)
+# model error (the planner does not know about it): pitch the stick about the throat, where the head joins the shaft,
+# and shift it along the shaft. A 10 deg bend moves the lip ~6 cm.
+throat = np.array([0.28, 0.016, 0.48])
+c, s_ = np.cos(np.radians(args.bend_deg)), np.sin(np.radians(args.bend_deg))
+E = np.eye(4)
+E[:3, :3] = [[c, 0.0, s_], [0.0, 1.0, 0.0], [-s_, 0.0, c]]
+E[:3, 3] = throat - E[:3, :3] @ throat + np.array([args.shift, 0.0, 0.0])
+T_hand_stick = T_hand_stick @ E
 q = Gf.Matrix4d(T_hand_stick.T.tolist()).ExtractRotationQuat()  # Gf uses row vectors
 joint = UsdPhysics.FixedJoint.Define(stage, "/fr3/stick_grip_joint")
 joint.CreateBody0Rel().SetTargets(["/fr3/fr3_hand"])

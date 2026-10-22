@@ -246,3 +246,25 @@ work). Results `grid_kp500_el*.json`.
   hand 6 cm, shaft 1.5 cm, head 6 cm; 2 cm margin); mount fixed at the front (mount_x 0.34, user confirmed front).
   New best: ball front-LEFT (bearing +37 deg, 0.63 m), scoop heading +91 deg, 23.5 cm planned clearance, 54% qd /
   62% qdd. Physics: 253/256 (+-1 cm), 254/256 (+-2 cm), 0/256 Husky contacts in both.
+
+## 2026-10-22: model mismatch -> compliant, contact-triggered FR3 control
+- User: the real shaft is octagonal with varying thickness and the head has a ~10 deg backward bend; the model is a
+  straight rounded-hexagon prism (23.9 mm equiv. dia., uniform 5 mm..710 mm), the shaft mesh has NO collider, and the
+  inertia is a uniform-rod estimate. Asked for a strategy tolerant to the model error (compliance so the head presses
+  on the floor instead of hovering).
+- Test: `make_fr3_lacrosse_usd.py --bend_deg/--shift` builds a "real" stick that differs from the planner's model
+  (pitch about the throat x=0.28; 10 deg moves the lip ~6 cm). Success metric fixed: the ball rests ~15 cm from the
+  POCKET reference point, so the threshold is now 25 cm (earlier 15 cm counted some successes as failures).
+- `fr3_scoop_sim.py --ctrl impedance`: operational-space impedance at the MODELLED lip (controller only knows the
+  model); start lifted 7 cm (planner saves q_start_lifted); before the lift no task stiffness along z, a 100 N/m
+  spring towards 10 cm below the modelled floor (press ~10 N, +-6 N for +-6 cm error); per-env plan time with
+  contact trigger (sim proxy: ball horizontal speed > 5 cm/s; on hardware the FR3 external-wrench estimate) that
+  re-anchors the post-contact motion at the measured lip position; z / pitch offsets re-anchored at the end of the
+  press; stiff axes 10 Hz; null-space PD to the planned joints (400 /s^2).
+- Results (128 envs, ball +-1 cm), PD vs impedance: nominal 128 / 127; length +3 cm 32 / 128; length -3 cm 0 / 128;
+  bend +5 43 / 128; bend -5 0 / 128 -> 94; bend +10 0 / 37; bend -10 0 / 0.
+- Lessons: zero pitch stiffness lets the floor tilt the head (lip lifts ~5 mm) -> keep pitch stiff; a slow
+  set-down (3 N) from a lifted start lands too late; without the contact trigger a bend that moves the lip forward
+  hits the ball ~0.07 s early and the timed lift is late. At +-10 deg the ball is lifted onto the head but rolls off
+  the front: the head ANGLE changes the scoop geometry, which compliance cannot fix -> measure the bend once (photo)
+  and plan with it; compliance + contact trigger then cover the remaining few-cm / few-deg errors.
