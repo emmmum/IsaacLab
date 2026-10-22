@@ -24,6 +24,7 @@ from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 parser.add_argument("--plan", required=True, help="planner output with T_tcp_in_stick")
+parser.add_argument("--out", default="fr3_lacrosse.usd", help="output file name, next to this script")
 args = parser.parse_args()
 app = AppLauncher(headless=True).app
 
@@ -35,7 +36,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "robomaster_lacrosse_long_stick_wheeled.usd")
-DST = os.path.join(HERE, "fr3_lacrosse.usd")
+DST = os.path.join(HERE, args.out)
 FR3 = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaFR3/fr3.usd"
 STICK_MASS = 0.457  # [kg]
 STICK_COM = (0.142, 0.016, 0.48)  # [m] in the stick (lowerarm) frame

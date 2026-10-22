@@ -26,6 +26,8 @@ p.add_argument("--ball_offset", type=float, default=0.01, help="uniform +- ball 
 p.add_argument("--video", default="", help="mp4 of env 0 (needs --enable_cameras)")
 p.add_argument("--video_every", type=int, default=6, help="physics steps per frame (6 = real time at 60 fps)")
 p.add_argument("--out", default="", help="save per-step signals of env 0 to this .npz")
+p.add_argument("--usd", default="fr3_lacrosse.usd", help="FR3 + stick asset (in the robomaster_lacrosse data dir)")
+p.add_argument("--husky", action="store_true", help="put the FR3 on a Clearpath Husky (mount_x from the plan)")
 AppLauncher.add_app_launcher_args(p)
 a = p.parse_args()
 app = AppLauncher(a).app
@@ -44,7 +46,9 @@ from isaaclab.utils.math import quat_apply  # noqa: E402
 from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-USD = os.path.join(REPO, "source/isaaclab_assets/data/robomaster_lacrosse/fr3_lacrosse.usd")
+USD = os.path.join(REPO, "source/isaaclab_assets/data/robomaster_lacrosse", a.usd)
+HUSKY_USD = os.path.join(REPO, "source/isaaclab_assets/data/husky/usd/husky/husky.usda")
+HUSKY_BASE_Z = 0.1323  # [m] base_link above the floor (Clearpath husky_description); top plate at 0.3773 m
 BALL_R, BALL_M = 0.0325, 0.141
 POCKET = (0.46, 0.016, 0.46)  # [m] pocket in the stick frame (STICK_POCKET_OFFSET)
 LIP = (0.640, 0.016, 0.452)  # [m] lip in the stick frame (STICK_LIP_OFFSET)
@@ -62,8 +66,17 @@ JOINTS = [f"fr3_joint{i}" for i in range(1, 8)]
 class SceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
     light = AssetBaseCfg(prim_path="/World/light", spawn=sim_utils.DomeLightCfg(intensity=2000.0))
-    # stand under the FR3 base (the plan puts the base base_h above the floor)
-    stand = AssetBaseCfg(
+    # FR3 on a Husky (top plate at the FR3 base, FR3 mount_x ahead of the Husky center), or on a plain stand
+    husky = (
+        AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Husky",
+            spawn=sim_utils.UsdFileCfg(usd_path=HUSKY_USD),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(-float(plan["mount_x"]), 0.0, HUSKY_BASE_Z)),
+        )
+        if a.husky
+        else None
+    )
+    stand = None if a.husky else AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Stand",
         spawn=sim_utils.CuboidCfg(
             size=(0.3, 0.3, max(base_h, 0.01)),

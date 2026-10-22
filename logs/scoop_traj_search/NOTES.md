@@ -226,3 +226,16 @@ work). Results `grid_kp500_el*.json`.
 - Physics (`fr3/fr3_scoop_sim.py`, PD 4000/150 + velocity feed-forward, arm gravity off, ball rolling resistance):
   joint tracking < 0.004 rad, lip within ~5 mm of the plan; success 255/256 (ball +-1 cm), 248/256 (+-2 cm),
   207/256 (+-3 cm). Videos fr3/fr3_scoop_realtime.mp4, fr3/fr3_scoop_slowmo6x.mp4.
+
+## 2026-10-22: FR3 on a Clearpath Husky (user's real setup)
+- No Husky in the Isaac asset library (Clearpath: Dingo, Jackal, Ridgeback). Took husky_description (BSD) from
+  github.com/husky/husky, expanded the xacro, converted to USD (`source/isaaclab_assets/data/husky/`).
+- User: FR3 base on the Husky top plate, 0.377 m above the floor (initially said ~0.30). Mount position along the
+  Husky not given -> searched (center line, facing forward).
+- Planner `--base_h 0.377 --husky`: Husky body as a box (+-0.55 m x, +-0.39 m y incl. wheels/bumpers) below the base
+  plane, 3 cm clearance for stick sample points and arm joint frames, ball not under the robot; plus 3 rounds of local
+  refinement around the 64 best candidates. Best: FR3 at the FRONT of the top plate (mount_x 0.34 m, the search bound
+  0.35), ball front-right (bearing -34 deg, 0.64 m from the FR3 base axis), scoop sweeping to the robot's right
+  (heading -91 deg); 50% of joint velocity, 60% of joint acceleration limits.
+- Physics (`fr3_scoop_sim.py --husky`, fr3_lacrosse_husky.usd): 252/256 (ball +-1 cm), 243/256 (+-2 cm); tracking
+  < 0.005 rad. Videos fr3/fr3_husky_scoop_realtime.mp4, fr3/fr3_husky_scoop_slowmo6x.mp4.

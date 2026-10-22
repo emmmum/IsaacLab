@@ -47,6 +47,15 @@ p.add_argument(
 )
 p.add_argument("--vel_margin", type=float, default=0.8, help="allowed fraction of the joint velocity/acc limits")
 p.add_argument("--seed", type=int, default=0)
+p.add_argument("--base_h", type=float, default=None, help="fix the FR3 base height above the floor [m]")
+p.add_argument(
+    "--husky", action="store_true", help="FR3 on a Clearpath Husky: keep arm, stick and ball clear of its body"
+)
+p.add_argument(
+    "--mount_x", type=float, default=None, help="FR3 base position along the Husky (+ = front) [m]; searched if unset"
+)
+p.add_argument("--clearance", type=float, default=0.03, help="minimum distance to the Husky body [m]")
+p.add_argument("--refine_rounds", type=int, default=2, help="local refinement rounds around the best candidates")
 a = p.parse_args()
 torch.manual_seed(a.seed)
 dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -86,6 +95,18 @@ def fk_tcp(q):
     for i in range(7):
         T = T @ _tf(float(DH[i, 0]), float(DH[i, 1]), float(DH[i, 2]), q[..., i])
     return T @ FLANGE_TO_TCP
+
+
+def fk_points(q):
+    """Origins of joint frames 2..7 and the flange, (..., 7, 3), for clearance checks."""
+    T = torch.eye(4, device=q.device).expand(*q.shape[:-1], 4, 4)
+    pts = []
+    for i in range(7):
+        T = T @ _tf(float(DH[i, 0]), float(DH[i, 1]), float(DH[i, 2]), q[..., i])
+        if i >= 1:
+            pts.append(T[..., :3, 3])
+    pts.append((T @ FLANGE_TO_TCP)[..., :3, 3])
+    return torch.stack(pts, -2)
 
 
 def pose_err(T, Td):
@@ -207,7 +228,8 @@ cand = dict(
     dist=U(0.35, 0.75),  # [m] horizontal distance from the FR3 base axis to the ball
     bearing=U(-math.pi, math.pi),  # [rad] direction of the ball seen from the base
     heading=U(-math.pi, math.pi),  # [rad] scoop direction in the base frame
-    base_h=U(0.0, 0.5),  # [m] FR3 base above the floor
+    base_h=U(0.0, 0.5) if a.base_h is None else torch.full((C,), a.base_h, device=dev),  # [m] base above the floor
+    mount_x=(U(-0.3, 0.3) if a.mount_x is None else torch.full((C,), a.mount_x, device=dev)),  # [m] on the Husky
     grip_x=U(-0.45, 0.15),  # [m] grip point on the shaft (stick frame x; elbow at 0, butt at -0.504)
     roll=U(-math.pi, math.pi),  # [rad] hand position around the shaft
     flip=(torch.rand(C, generator=rng) < 0.5).float().to(dev) * 2 - 1,  # TCP x along +/- stick axis
@@ -215,6 +237,7 @@ cand = dict(
 
 
 def ball_frame_in_base(c):
+    C = len(c["dist"])
     T = torch.eye(4, device=dev).repeat(C, 1, 1)
     ch, sh = torch.cos(c["heading"]), torch.sin(c["heading"])
     T[:, 0, 0], T[:, 0, 1], T[:, 1, 0], T[:, 1, 1] = ch, -sh, sh, ch
@@ -226,6 +249,7 @@ def ball_frame_in_base(c):
 
 def tcp_in_stick(c):
     """Grip: TCP at the shaft point (grip_x, 0.016, 0.48), fingers closing across the shaft."""
+    C = len(c["dist"])
     T = torch.eye(4, device=dev).repeat(C, 1, 1)
     x = torch.stack([c["flip"], torch.zeros(C, device=dev), torch.zeros(C, device=dev)], -1)
     n = torch.stack([torch.zeros(C, device=dev), torch.sin(c["roll"]), torch.cos(c["roll"])], -1)  # shaft -> hand
@@ -236,52 +260,99 @@ def tcp_in_stick(c):
     return T
 
 
-Tb = ball_frame_in_base(cand)
-Tg = tcp_in_stick(cand)
-Tn = len(t_plan)
-# TCP targets (C, Tn, 4, 4)
-T_tcp = Tb[:, None] @ T_stick[None] @ Tg[:, None]
+def evaluate(cand):
+    """IK along the trajectory for every candidate; returns the joint trajectories and feasibility metrics."""
+    C = len(cand["dist"])
+    Tb = ball_frame_in_base(cand)
+    Tg = tcp_in_stick(cand)
+    Tn = len(t_plan)
+    T_tcp = Tb[:, None] @ T_stick[None] @ Tg[:, None]  # TCP targets (C, Tn, 4, 4)
+    # initial solution: several random seeds per candidate, keep the best
+    seeds = 8
+    qs = Q_LO + (Q_HI - Q_LO) * torch.rand(C, seeds, 7, device=dev)
+    Td0 = T_tcp[:, 0][:, None].expand(-1, seeds, -1, -1)
+    for _ in range(40):
+        qs = ik_step(qs, Td0, iters=1, k_null=0.02)
+    err0 = pose_err(fk_tcp(qs), Td0)
+    score0 = err0[..., :3].norm(dim=-1) + 0.1 * err0[..., 3:].norm(dim=-1)
+    q = qs[torch.arange(C), score0.argmin(-1)]
+    Q = torch.empty(C, Tn, 7, device=dev)
+    pos_err = torch.empty(C, Tn, device=dev)
+    rot_err = torch.empty(C, Tn, device=dev)
+    for n in range(Tn):
+        q = ik_step(q, T_tcp[:, n], iters=3 if n else 10)
+        Q[:, n] = q
+        er = pose_err(fk_tcp(q), T_tcp[:, n])
+        pos_err[:, n], rot_err[:, n] = er[:, :3].norm(dim=-1), er[:, 3:].norm(dim=-1)
+    qd = torch.gradient(Q, spacing=dt, dim=1)[0]
+    qdd = torch.gradient(qd, spacing=dt, dim=1)[0]
+    vel_ratio = (qd.abs() / QD_MAX).amax(dim=(1, 2))
+    acc_ratio = (qdd.abs() / QDD_MAX).amax(dim=(1, 2))
+    lim_margin = torch.minimum(Q - Q_LO, Q_HI - Q).amin(dim=(1, 2))
+    ratio = torch.nan_to_num(torch.maximum(vel_ratio, acc_ratio), nan=float("inf"))
+    pos_err, rot_err = torch.nan_to_num(pos_err, nan=float("inf")), torch.nan_to_num(rot_err, nan=float("inf"))
+    # Husky body (Clearpath husky_description: 0.99 x 0.57 m chassis, wheels to +-0.39 m, bumpers to +-0.55 m) as a
+    # box under the FR3 base plane, in the FR3 base frame; FR3 on the center line at mount_x, facing forward
+    clear = torch.ones(C, dtype=torch.bool, device=dev)
+    if a.husky:
+        m = a.clearance
+        lo = torch.stack([-0.55 - cand["mount_x"], torch.full((C,), -0.39, device=dev), -cand["base_h"]], -1) - m
+        hi = torch.stack([0.55 - cand["mount_x"], torch.full((C,), 0.39, device=dev), torch.zeros(C, device=dev)], -1)
+        hi[:, :2] += m  # the FR3 base itself sits on top (z upper bound 0)
+        sx = torch.linspace(-0.50, 0.64, 24, device=dev)  # stick: shaft from butt to lip, plus the head outline
+        stick_pts = torch.stack([sx, torch.full_like(sx, 0.016), torch.full_like(sx, 0.47)], -1)
+        head = torch.tensor([[0.46, 0.13, 0.46], [0.46, -0.10, 0.46], [0.60, 0.016, 0.44]], device=dev)
+        sp_h = torch.cat([torch.cat([stick_pts, head]), torch.ones(len(stick_pts) + 3, 1, device=dev)], -1)
+        pts_stick = (Tb[:, None] @ T_stick[None] @ sp_h.T)[..., :3, :].transpose(-1, -2)  # (C, Tn, P, 3)
+        pts = torch.cat([pts_stick, fk_points(Q)[:, :, 1:]], 2)  # arm: skip joint 2 (on top of the base)
+        inside = ((pts > lo[:, None, None]) & (pts < hi[:, None, None])).all(-1)
+        clear = ~inside.any(dim=(1, 2))
+        bxy = Tb[:, :2, 3]  # the ball must not start under the robot
+        clear &= (bxy[:, 0] < lo[:, 0] - 0.04) | (bxy[:, 0] > hi[:, 0] + 0.04) | (bxy[:, 1].abs() > 0.39 + m + 0.04)
+    track_ok = (pos_err.amax(1) < 0.002) & (rot_err.amax(1) < 0.01) & (lim_margin > 0.05) & clear
+    ok = track_ok & (ratio < a.vel_margin)
+    score = torch.where(ok, ratio, torch.where(track_ok, 10.0 + ratio, 100.0 + pos_err.amax(1)))
+    return dict(
+        Q=Q, qd=qd, qdd=qdd, Tb=Tb, Tg=Tg, vel_ratio=vel_ratio, acc_ratio=acc_ratio, lim_margin=lim_margin,
+        pos_err=pos_err, rot_err=rot_err, clear=clear, ok=ok, score=score,
+    )  # fmt: skip
 
-# ---------------- IK along the trajectory ----------------
-# initial solution: several random seeds per candidate, keep the best
-seeds = 8
-qs = Q_LO + (Q_HI - Q_LO) * torch.rand(C, seeds, 7, device=dev)
-Td0 = T_tcp[:, 0][:, None].expand(-1, seeds, -1, -1)
-for _ in range(40):
-    qs = ik_step(qs, Td0, iters=1, k_null=0.02)
-err0 = pose_err(fk_tcp(qs), Td0)
-score0 = err0[..., :3].norm(dim=-1) + 0.1 * err0[..., 3:].norm(dim=-1)
-q = qs[torch.arange(C), score0.argmin(-1)]
-Q = torch.empty(C, Tn, 7, device=dev)
-pos_err = torch.empty(C, Tn, device=dev)
-rot_err = torch.empty(C, Tn, device=dev)
-for n in range(Tn):
-    q = ik_step(q, T_tcp[:, n], iters=3 if n else 10)
-    Q[:, n] = q
-    er = pose_err(fk_tcp(q), T_tcp[:, n])
-    pos_err[:, n], rot_err[:, n] = er[:, :3].norm(dim=-1), er[:, 3:].norm(dim=-1)
 
-qd = torch.gradient(Q, spacing=dt, dim=1)[0]
-qdd = torch.gradient(qd, spacing=dt, dim=1)[0]
-vel_ratio = (qd.abs() / QD_MAX).amax(dim=(1, 2))
-acc_ratio = (qdd.abs() / QDD_MAX).amax(dim=(1, 2))
-lim_margin = torch.minimum(Q - Q_LO, Q_HI - Q).amin(dim=(1, 2))
-ratio = torch.nan_to_num(torch.maximum(vel_ratio, acc_ratio), nan=float("inf"))
-pos_err, rot_err = torch.nan_to_num(pos_err, nan=float("inf")), torch.nan_to_num(rot_err, nan=float("inf"))
-ok = (pos_err.amax(1) < 0.002) & (rot_err.amax(1) < 0.01) & (ratio < a.vel_margin) & (lim_margin > 0.05)
-track_ok = (pos_err.amax(1) < 0.002) & (rot_err.amax(1) < 0.01) & (lim_margin > 0.05)
-score = torch.where(ok, ratio, torch.where(track_ok, 10.0 + ratio, 100.0 + pos_err.amax(1)))
-tv = track_ok & (vel_ratio < a.vel_margin)
-if tv.any():
-    print(f"PLAN tracking+velocity ok: {int(tv.sum())}; their max|qdd|/limit: min {acc_ratio[tv].min():.2f}, "
-          f"median {acc_ratio[tv].median():.2f}; worst joint of the best: "
-          f"{int((qdd[acc_ratio.masked_fill(~tv, 1e9).argmin()].abs() / QDD_MAX).amax(0).argmax()) + 1}")
+def perturb(cand, res, k=64):
+    """New candidates around the k best ones (same total count)."""
+    C = len(cand["dist"])
+    top = res["score"].argsort()[:k]
+    idx = top[torch.arange(C, device=dev) % k]
+    sig = dict(dist=0.03, bearing=0.08, heading=0.08, base_h=0.03, mount_x=0.04, grip_x=0.04, roll=0.12)
+    new = {}
+    for key, v in cand.items():
+        x = v[idx].clone()
+        if key in sig and not (key == "base_h" and a.base_h is not None) and not (key == "mount_x" and a.mount_x is not None):
+            x = x + sig[key] * torch.randn(C, device=dev) * (torch.arange(C, device=dev) >= k)  # keep the parents
+        new[key] = x
+    new["dist"] = new["dist"].clamp(0.3, 0.85)
+    new["base_h"] = new["base_h"].clamp(0.0, 0.6)
+    new["mount_x"] = new["mount_x"].clamp(-0.35, 0.35)
+    new["grip_x"] = new["grip_x"].clamp(-0.48, 0.2)
+    return new
+
+
+res = evaluate(cand)
+print(f"PLAN round 0: feasible {int(res['ok'].sum())}/{C}, husky clearance ok {int(res['clear'].sum())}")
+for r in range(a.refine_rounds):
+    cand = perturb(cand, res)
+    res = evaluate(cand)
+    best_r = res["score"].min().item()
+    print(f"PLAN refine {r + 1}: feasible {int(res['ok'].sum())}/{C}, best score {best_r:.3f}")
+Q, qd, qdd, Tb, Tg = res["Q"], res["qd"], res["qdd"], res["Tb"], res["Tg"]
+vel_ratio, acc_ratio, lim_margin = res["vel_ratio"], res["acc_ratio"], res["lim_margin"]
+pos_err, rot_err, ok, score = res["pos_err"], res["rot_err"], res["ok"], res["score"]
 best = int(score.argmin())
 print(f"PLAN feasible {int(ok.sum())}/{C} candidates")
 for i in score.argsort()[:5].tolist():
     print(
-        f"PLAN cand {i}: max|qd|/limit {vel_ratio[i]:.2f}  max|qdd|/limit {acc_ratio[i]:.2f}  pos err {1000 * pos_err[i].max():.2f} mm  rot err"
-        f" {rot_err[i].max():.4f} rad  limit margin {lim_margin[i]:.2f} rad  max|qdd| {qdd[i].abs().max():.1f} rad/s2  "
+        f"PLAN cand {i}: max|qd|/limit {vel_ratio[i]:.2f}  max|qdd|/limit {acc_ratio[i]:.2f}  pos err"
+        f" {1000 * pos_err[i].max():.2f} mm  rot err {rot_err[i].max():.4f} rad  limit margin {lim_margin[i]:.2f} rad  "
         + "  ".join(f"{k}={float(v[i]):.2f}" for k, v in cand.items())
     )
 np.savez(
