@@ -208,3 +208,21 @@ work). Results `grid_kp500_el*.json`.
   Now 4096 envs: 70 s vs 27 s per 4 s episode (2.6x), +2.5 min startup for settling, no contact-buffer overflow.
 - Open loop on the lab-floor levels (8192 episodes): L0 99.7, L1 98.0, L2 96.5, L3 95.7, L4 94.4, L5 93.5,
   L6 92.2, L7 (1.0 mm, 0.3 deg) 91.8% -> overall 95.2%. Ball rests in >= 93% of drops even at L7.
+
+## 2026-10-22: retarget the scoop to a Franka Research 3 (FK of the stick, IK on FR3)
+- Scoop speed (open loop, 16 runs): contact at t = 0.85 s; lip on the floor moving +x at 0.73 m/s (base 0.9 m/s;
+  the soft arm lags), stick pitched 48.5 deg; ball 10 cm up 0.18 s and 30 cm up 0.36 s after contact; stick moves
+  0.47 m in those 0.36 s, |w| up to 2.1 rad/s. Raw recording has impact shocks (~40 m/s^2, 65 rad/s^2) -> smoothed.
+- `fr3/record_stick_traj.py` records the stick (lowerarm) world motion. `fr3/plan_fr3.py` (pure torch, FR3 = Panda
+  modified DH): reference smoothed (Gaussian 30 ms); quintic approach from rest onto the recorded motion 0.15 s
+  before contact; recording followed exactly 0.4 s after contact; then playback rate ramps 1 -> 0 over 0.6 s (gentle
+  stop, ~1.5 m/s^2) and hold. Batch search (16384) over ball distance/bearing, scoop heading, base height, grip
+  point on the shaft, grip roll, TCP flip; DLS IK, feasible = < 2 mm / 0.01 rad tracking, joint margin > 0.05 rad,
+  qd and qdd < 80% of limits (qdd limits = Panda datasheet values, ASSUMED for FR3).
+- Best: FR3 base 0.50 m above the floor, ball 0.56 m from the base axis at bearing 91 deg, scoop heading 47 deg,
+  grip 5 cm behind the old elbow, fingers across the shaft; uses 58% of joint velocity and 78% of joint acceleration
+  limits. `make_fr3_lacrosse_usd.py` builds fr3_lacrosse.usd (FR3 from the Isaac library + stick link welded to
+  fr3_hand at that grip, real stick mass/inertia).
+- Physics (`fr3/fr3_scoop_sim.py`, PD 4000/150 + velocity feed-forward, arm gravity off, ball rolling resistance):
+  joint tracking < 0.004 rad, lip within ~5 mm of the plan; success 255/256 (ball +-1 cm), 248/256 (+-2 cm),
+  207/256 (+-3 cm). Videos fr3/fr3_scoop_realtime.mp4, fr3/fr3_scoop_slowmo6x.mp4.
