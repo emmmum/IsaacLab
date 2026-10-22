@@ -28,6 +28,7 @@ p.add_argument("--video_every", type=int, default=6, help="physics steps per fra
 p.add_argument("--out", default="", help="save per-step signals of env 0 to this .npz")
 p.add_argument("--usd", default="fr3_lacrosse.usd", help="FR3 + stick asset (in the robomaster_lacrosse data dir)")
 p.add_argument("--husky", action="store_true", help="put the FR3 on a Clearpath Husky (mount_x from the plan)")
+p.add_argument("--husky_box", type=float, nargs=2, default=(1.10, 0.78), help="Husky collision box length, width [m]")
 AppLauncher.add_app_launcher_args(p)
 a = p.parse_args()
 app = AppLauncher(a).app
@@ -41,6 +42,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
+from isaaclab.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils.math import quat_apply  # noqa: E402
 from isaaclab_physx.physics import PhysxCfg  # noqa: E402
@@ -49,6 +51,9 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")
 USD = os.path.join(REPO, "source/isaaclab_assets/data/robomaster_lacrosse", a.usd)
 HUSKY_USD = os.path.join(REPO, "source/isaaclab_assets/data/husky/usd/husky/husky.usda")
 HUSKY_BASE_Z = 0.1323  # [m] base_link above the floor (Clearpath husky_description); top plate at 0.3773 m
+# Husky collision model: a box (wheels and bumpers included) from the floor up to the FR3 base plane, the same box the
+# planner keeps clear of. The converted Husky USD is visual only (its physics variant is not selected).
+HUSKY_BOX = tuple(a.husky_box)  # [m] length, width (default: wheels and bumpers included)
 BALL_R, BALL_M = 0.0325, 0.141
 POCKET = (0.46, 0.016, 0.46)  # [m] pocket in the stick frame (STICK_POCKET_OFFSET)
 LIP = (0.640, 0.016, 0.452)  # [m] lip in the stick frame (STICK_LIP_OFFSET)
@@ -73,6 +78,28 @@ class SceneCfg(InteractiveSceneCfg):
             spawn=sim_utils.UsdFileCfg(usd_path=HUSKY_USD),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(-float(plan["mount_x"]), 0.0, HUSKY_BASE_Z)),
         )
+        if a.husky
+        else None
+    )
+    husky_box = (
+        RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/HuskyBox",
+            spawn=sim_utils.CuboidCfg(
+                size=(*HUSKY_BOX, base_h - 0.002),  # just below the FR3 base so the mount itself is not a contact
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                activate_contact_sensors=True,
+                visible=False,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(-float(plan["mount_x"]), 0.0, 0.5 * (base_h - 0.002))),
+        )
+        if a.husky
+        else None
+    )
+    # net contact force on the Husky box: it is kinematic, so the floor never pushes on it; any force comes from the
+    # arm, the stick or the ball touching the Husky (the box top is 2 mm below the FR3 base, so the mount is no contact)
+    husky_contact = (
+        ContactSensorCfg(prim_path="{ENV_REGEX_NS}/HuskyBox")
         if a.husky
         else None
     )
@@ -177,6 +204,9 @@ def main():
         mid = (o[0] + 0.5 * torch.tensor([float(ball_xy[0, 0]), float(ball_xy[0, 1]), 0.0], device=dev)).tolist()
         head = Tb[:3, 0].tolist()  # scoop direction
         side = [-head[1], head[0]]
+        # look from the side of the scoop line that faces away from the robot base / Husky
+        if side[0] * (mid[0] - o[0, 0].item()) + side[1] * (mid[1] - o[0, 1].item()) < 0:
+            side = [-side[0], -side[1]]
         from pxr import Gf, UsdGeom
 
         from isaaclab.sim.utils import get_current_stage
@@ -192,6 +222,7 @@ def main():
         for _ in range(10):
             sim.render()
 
+    contact_max = torch.zeros(n, device=dev)
     for k in range(steps):
         x = min(k * phys_dt / dt_plan, len(t_plan) - 1.001)
         i, f = int(x), x - int(x)
@@ -214,6 +245,9 @@ def main():
         render = writer is not None and k % a.video_every == 0
         sim.step(render=render)
         scene.update(phys_dt)
+        if a.husky:
+            f_box = scene["husky_contact"].data.net_forces_w.torch  # (n, 1, 3)
+            contact_max = torch.maximum(contact_max, torch.linalg.norm(f_box, dim=-1).amax(dim=1))
         sp = robot.data.body_pose_w.torch[:, stick_id]
         if a.out and k % 3 == 0:
             rec["t"].append(t_plan[0] + k * phys_dt)
@@ -234,6 +268,10 @@ def main():
     err = (robot.data.joint_pos.torch[:, arm_ids] - q_t[-1]).abs().max().item()
     print(f"SIM success {int(ok.sum())}/{n} (ball offset +-{100 * a.ball_offset:.0f} cm); env0 ball height "
           f"{height[0]:.3f} m; final joint error {err:.4f} rad")  # fmt: skip
+    if a.husky:
+        hit = contact_max > 0.1
+        print(f"SIM husky contacts: {int(hit.sum())}/{n} envs with any contact on the Husky box > 0.1 N "
+              f"(max {contact_max.max():.2f} N)")  # fmt: skip
     if a.out:
         np.savez(a.out, **{k: np.array(v) for k, v in rec.items()})
     if writer is not None:

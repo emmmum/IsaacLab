@@ -239,3 +239,10 @@ work). Results `grid_kp500_el*.json`.
   (heading -91 deg); 50% of joint velocity, 60% of joint acceleration limits.
 - Physics (`fr3_scoop_sim.py --husky`, fr3_lacrosse_husky.usd): 252/256 (ball +-1 cm), 243/256 (+-2 cm); tracking
   < 0.005 rad. Videos fr3/fr3_husky_scoop_realtime.mp4, fr3/fr3_husky_scoop_slowmo6x.mp4.
+- 2026-10-22 (later): the converted Husky USD has NO physics (its "Physics" variant is unselected) -> earlier "no
+  collision" claims were not checked. Now: Husky collision = kinematic box (1.10 x 0.78 m, floor to 2 mm below the
+  FR3 base, invisible), Husky USD visual only; contact sensor = net force on the box (kinematic -> floor gives none);
+  positive control (2.5 m box) registers contacts in 16/16 envs. Planner clearance is capsule-vs-box (arm links r 7 cm,
+  hand 6 cm, shaft 1.5 cm, head 6 cm; 2 cm margin); mount fixed at the front (mount_x 0.34, user confirmed front).
+  New best: ball front-LEFT (bearing +37 deg, 0.63 m), scoop heading +91 deg, 23.5 cm planned clearance, 54% qd /
+  62% qdd. Physics: 253/256 (+-1 cm), 254/256 (+-2 cm), 0/256 Husky contacts in both.

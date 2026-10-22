@@ -54,7 +54,7 @@ p.add_argument(
 p.add_argument(
     "--mount_x", type=float, default=None, help="FR3 base position along the Husky (+ = front) [m]; searched if unset"
 )
-p.add_argument("--clearance", type=float, default=0.03, help="minimum distance to the Husky body [m]")
+p.add_argument("--clearance", type=float, default=0.02, help="minimum distance to the Husky body [m]")
 p.add_argument("--refine_rounds", type=int, default=2, help="local refinement rounds around the best candidates")
 a = p.parse_args()
 torch.manual_seed(a.seed)
@@ -292,29 +292,43 @@ def evaluate(cand):
     ratio = torch.nan_to_num(torch.maximum(vel_ratio, acc_ratio), nan=float("inf"))
     pos_err, rot_err = torch.nan_to_num(pos_err, nan=float("inf")), torch.nan_to_num(rot_err, nan=float("inf"))
     # Husky body (Clearpath husky_description: 0.99 x 0.57 m chassis, wheels to +-0.39 m, bumpers to +-0.55 m) as a
-    # box under the FR3 base plane, in the FR3 base frame; FR3 on the center line at mount_x, facing forward
+    # box below the FR3 base plane, in the FR3 base frame (FR3 on the center line at mount_x, facing forward). The arm
+    # links and the stick are capsules (sampled spheres); every sphere must stay `clearance` away from the box. The
+    # FR3 base and link 1 stand on the top plate and are not checked.
     clear = torch.ones(C, dtype=torch.bool, device=dev)
+    min_dist = torch.full((C,), float("inf"), device=dev)
     if a.husky:
-        m = a.clearance
-        lo = torch.stack([-0.55 - cand["mount_x"], torch.full((C,), -0.39, device=dev), -cand["base_h"]], -1) - m
-        hi = torch.stack([0.55 - cand["mount_x"], torch.full((C,), 0.39, device=dev), torch.zeros(C, device=dev)], -1)
-        hi[:, :2] += m  # the FR3 base itself sits on top (z upper bound 0)
-        sx = torch.linspace(-0.50, 0.64, 24, device=dev)  # stick: shaft from butt to lip, plus the head outline
-        stick_pts = torch.stack([sx, torch.full_like(sx, 0.016), torch.full_like(sx, 0.47)], -1)
-        head = torch.tensor([[0.46, 0.13, 0.46], [0.46, -0.10, 0.46], [0.60, 0.016, 0.44]], device=dev)
-        sp_h = torch.cat([torch.cat([stick_pts, head]), torch.ones(len(stick_pts) + 3, 1, device=dev)], -1)
+        box_c = torch.stack([-cand["mount_x"], torch.zeros(C, device=dev), -0.5 * cand["base_h"]], -1)
+        box_h = torch.stack([torch.full((C,), 0.55, device=dev), torch.full((C,), 0.39, device=dev), 0.5 * cand["base_h"]], -1)
+        # arm: spheres along the segments between the joint frames 2..7, the flange and the TCP
+        Tq = fk_tcp(Q)[..., :3, 3]
+        chain = torch.cat([fk_points(Q), Tq[..., None, :]], -2)  # (C, Tn, 8, 3)
+        s = torch.linspace(0, 1, 6, device=dev)[:, None]
+        seg = chain[..., :-1, None, :] * (1 - s) + chain[..., 1:, None, :] * s  # (C, Tn, 7, 6, 3)
+        arm_pts = seg.flatten(2, 3)
+        arm_r = torch.tensor([0.07] * 5 * 6 + [0.06] * 2 * 6, device=dev)  # links, then flange/hand
+        # stick: shaft (r 1.5 cm) from the butt to the head, head (r 6 cm) from its throat to the lip
+        sx = torch.linspace(-0.50, 0.28, 14, device=dev)
+        hx = torch.linspace(0.30, 0.60, 5, device=dev)
+        stick_pts = torch.cat([torch.stack([sx, torch.full_like(sx, 0.016), torch.full_like(sx, 0.47)], -1),
+                               torch.stack([hx, torch.full_like(hx, 0.016), torch.full_like(hx, 0.46)], -1)])
+        stick_r = torch.tensor([0.015] * 14 + [0.06] * 5, device=dev)
+        sp_h = torch.cat([stick_pts, torch.ones(len(stick_pts), 1, device=dev)], -1)
         pts_stick = (Tb[:, None] @ T_stick[None] @ sp_h.T)[..., :3, :].transpose(-1, -2)  # (C, Tn, P, 3)
-        pts = torch.cat([pts_stick, fk_points(Q)[:, :, 1:]], 2)  # arm: skip joint 2 (on top of the base)
-        inside = ((pts > lo[:, None, None]) & (pts < hi[:, None, None])).all(-1)
-        clear = ~inside.any(dim=(1, 2))
-        bxy = Tb[:, :2, 3]  # the ball must not start under the robot
-        clear &= (bxy[:, 0] < lo[:, 0] - 0.04) | (bxy[:, 0] > hi[:, 0] + 0.04) | (bxy[:, 1].abs() > 0.39 + m + 0.04)
+        pts = torch.cat([arm_pts, pts_stick], 2)
+        rad = torch.cat([arm_r, stick_r])
+        d = (pts - box_c[:, None, None]).abs() - box_h[:, None, None]
+        dist = torch.linalg.norm(d.clamp(min=0.0), dim=-1) + d.amax(-1).clamp(max=0.0)  # signed distance to the box
+        min_dist = (dist - rad).amin(dim=(1, 2))
+        clear = min_dist > a.clearance
+        bxy = Tb[:, :2, 3]  # the ball must not start under or against the robot
+        clear &= ((bxy - box_c[:, :2]).abs() - box_h[:, :2] > 0.05).any(-1)  # fmt: skip
     track_ok = (pos_err.amax(1) < 0.002) & (rot_err.amax(1) < 0.01) & (lim_margin > 0.05) & clear
     ok = track_ok & (ratio < a.vel_margin)
     score = torch.where(ok, ratio, torch.where(track_ok, 10.0 + ratio, 100.0 + pos_err.amax(1)))
     return dict(
         Q=Q, qd=qd, qdd=qdd, Tb=Tb, Tg=Tg, vel_ratio=vel_ratio, acc_ratio=acc_ratio, lim_margin=lim_margin,
-        pos_err=pos_err, rot_err=rot_err, clear=clear, ok=ok, score=score,
+        pos_err=pos_err, rot_err=rot_err, clear=clear, ok=ok, score=score, min_dist=min_dist,
     )  # fmt: skip
 
 
@@ -353,6 +367,7 @@ for i in score.argsort()[:5].tolist():
     print(
         f"PLAN cand {i}: max|qd|/limit {vel_ratio[i]:.2f}  max|qdd|/limit {acc_ratio[i]:.2f}  pos err"
         f" {1000 * pos_err[i].max():.2f} mm  rot err {rot_err[i].max():.4f} rad  limit margin {lim_margin[i]:.2f} rad  "
+        f"husky clearance {100 * res['min_dist'][i]:.1f} cm  "
         + "  ".join(f"{k}={float(v[i]):.2f}" for k, v in cand.items())
     )
 np.savez(
