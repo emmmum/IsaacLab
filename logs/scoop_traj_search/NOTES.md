@@ -268,3 +268,34 @@ work). Results `grid_kp500_el*.json`.
   hits the ball ~0.07 s early and the timed lift is late. At +-10 deg the ball is lifted onto the head but rolls off
   the front: the head ANGLE changes the scoop geometry, which compliance cannot fix -> measure the bend once (photo)
   and plan with it; compliance + contact trigger then cover the remaining few-cm / few-deg errors.
+
+## 2026-11-10: Blackfly S tag tracking, base velocity ID, kinesthetic teaching + replay (real robot)
+- Camera: FLIR Blackfly S BFS-U3-16S2C (serial 26166162; the user also has 24284909) on the desktop USB3 (the USB
+  extension cable fails: "Cannot enable. Maybe the USB cable is bad?"). Spinnaker 4.4 + PySpin; 1440x1080 BayerRG8,
+  199 fps with 0 drops at 2-3 ms exposure. Intrinsics from 30 views of a checkerboard on the monitor (monitor pixels are
+  NOT square: squares 31.1 x 30.76 mm, confirmed by tape 311 / 215 mm and by the fit): f 2299.98 px (fx = fy fixed),
+  c (711.26, 503.32), k1 -0.4844 k2 0.2759, rms 0.108 px -> `real_robot/blackfly_20261110/blackfly_26166162_intrinsics.json`.
+- Tag tracking (`blackfly_20261110/track.py` + `grab.py`): AprilTag 36h11 id 0, 90 mm black edge, on the chassis; full-frame
+  search once, then ROI around the last detection -> ~1 ms/frame, 200 fps. Static noise at 3.4 m: 0.3 / 0.25 / 4.8 mm
+  (x / y / depth) at 3 ms exposure. The old print needs relaxed detector params (thin white border).
+- Base velocity response (`vel_sweep.py` on the Jetson; drive_speed 50 Hz; steps 0.2/0.4/0.6/0.9 m/s + trapezoids 1.5 m/s^2;
+  `fit_ratelim.py`, `sweep_model.png`): ONE model fits all 16 runs: delay ~0.02 s -> acceleration limit 2.12 m/s^2 ->
+  2nd order wn 11.9 rad/s, zeta 0.27, gain 1.05 (rms 36 mm/s; without the accel limit 82 mm/s). Steps overshoot
+  28-95 %; 1.5 m/s^2 trapezoids still 28-68 % (only 0.9 m/s, triangular, 9-13 %). Motion onset 130-220 ms after the
+  command. The sim `second_order` mode (apply_real: delay 0.06, wn 12, zeta 0.4) skips base_max_lin_accel -> should
+  be limit + 2nd order (not changed yet). The hard steps yawed the chassis ~24 deg over the sweep (mecanum slip).
+- Kinesthetic teaching (`teach_20261110_153011/`): gravity-comp mode with a per-cycle logger (`grav_comp_rec.py`,
+  ~175 Hz) + chassis tag at 200 fps; Jetson-desktop clock offset +3.9 ms. `trim_teach.py` cuts 1 s before the first
+  to 1 s after the last motion (9.48 s) -> `teach_20261110_153011_trimmed_100Hz.csv`. Demo: shoulder 0 -> 55 -> 43 ->
+  75 -> 0 deg, elbow 0 -> 25 -> 9 -> 60.5 -> 3.5 deg, chassis pushed back 0.29 m, forward 0.44 m, back 0.44 m in a
+  straight line (peak 0.68 m/s, heading change < 5 deg). Replayed on the arm at 0.1x twice (`replay_arm.py`, Kp 20/50
+  + gravity + velocity FF): tracking rms 0.55 / 0.14 deg, max 1.6 / 0.5 deg; shoulder torque peaks 3.9 N m at the
+  75 deg pose (gravity), i.e. at the 4 N m limit -> a faster replay needs a higher limit or a lower pose.
+- Arm bring-up after a Jetson power loss on the park rest: 102 read +46.45 deg off again (single-turn rotor encoder);
+  `fix_zero102.py` (Kp 20/50 + FF) raised it to 0/0 and re-zeroed 102. `param_read.py` reads angles via parameter
+  frames WITHOUT disabling (enc_read.py's STOP frame disables). `park_disable.py` aborted (user cut motor power); its
+  order (elbow to -45 at shoulder 0) is below the floor-safe bound -> move the shoulder back first.
+- Jetson: Wi-Fi power save off (NetworkManager conf 99-wifi-powersave-off.conf). The RoboMaster RNDIS interface name
+  changes with USB enumeration order (usb0 or usb1; the other usbX / rndis0 are the Jetson's own gadget) and gets no
+  DHCP lease -> set 192.168.42.3/24 manually (`nmcli device modify`, not persistent). D435i left/right IR (Y8I via
+  V4L2) + RGB of the ball: `real_robot/d435_ball_20261110/`.
