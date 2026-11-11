@@ -1,0 +1,11 @@
+exposure 2001 us, fps 199.9
+t=  1.1s fps=   0.9 det=100.0% proc=24.4ms  xyz=(+0.208,+0.051,1.991) m tag 103px
+t=  2.1s fps=  96.8 det=100.0% proc=3.9ms  xyz=(+0.208,+0.051,1.990) m tag 103px
+t=  3.1s fps= 129.8 det=100.0% proc=3.9ms  xyz=(+0.206,+0.051,1.989) m tag 103px
+t=  4.1s fps= 147.0 det=100.0% proc=3.7ms  xyz=(+0.082,+0.047,2.025) m tag 102px
+t=  5.1s fps= 157.3 det=100.0% proc=3.8ms  xyz=(+0.068,+0.046,2.028) m tag 102px
+t=  6.1s fps= 161.7 det=100.0% proc=4.4ms  xyz=(+0.460,+0.057,1.921) m tag 103px
+t=  7.1s fps= 163.0 det=100.0% proc=5.3ms  xyz=(+0.329,+0.053,1.949) m tag 104px
+t=  8.1s fps= 168.4 det=100.0% proc=4.2ms  xyz=(+0.249,+0.051,1.971) m tag 104px
+video: 393 frames, dropped 0
+done: 1570 frames in 9.0s, detected 1570, cam span 7.85s -> 200.0 fps

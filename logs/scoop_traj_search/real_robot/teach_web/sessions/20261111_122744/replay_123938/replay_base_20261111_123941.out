@@ -1,0 +1,4 @@
+12:39:44 odom ok, waiting 15.7 s for start; duration 8.6 s at x1.0
+12:39:59 playing
+12:40:08 ABORT RuntimeError('stop requested')
+12:40:08 chassis released

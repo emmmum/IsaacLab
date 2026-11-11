@@ -1,0 +1,20 @@
+{
+ "arm_err_rms_deg": [
+  0.819262225727497,
+  0.3480158104898296
+ ],
+ "arm_err_max_deg": [
+  2.9862560282218475,
+  1.3241054645473305
+ ],
+ "base_real_vs_teach_rms_m": 0.028938624975872025,
+ "base_real_vs_teach_max_m": 0.07027987493138912,
+ "base_odom_vs_teach_rms_m": 0.012277385392480107,
+ "base_end_teach_real_odom_m": [
+  -0.06099,
+  -0.04274887268493446,
+  -0.0637
+ ],
+ "blackfly_gap_s": 0.0,
+ "ball_after": "not found (ball not found in the RealSense photo)"
+}

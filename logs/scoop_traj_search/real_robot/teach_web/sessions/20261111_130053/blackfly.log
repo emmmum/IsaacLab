@@ -1,0 +1,16 @@
+exposure 2001 us, fps 199.9
+t=  1.1s fps=   0.9 det=100.0% proc=17.9ms  xyz=(+0.202,+0.044,2.062) m tag 99px
+t=  2.1s fps=  96.8 det=100.0% proc=3.7ms  xyz=(+0.202,+0.044,2.064) m tag 99px
+t=  3.1s fps= 129.9 det=100.0% proc=3.8ms  xyz=(+0.202,+0.044,2.064) m tag 99px
+t=  4.1s fps= 147.0 det=100.0% proc=3.7ms  xyz=(+0.200,+0.044,2.067) m tag 99px
+t=  5.1s fps= 157.3 det=100.0% proc=3.8ms  xyz=(+0.199,+0.044,2.061) m tag 99px
+t=  6.1s fps= 164.3 det=100.0% proc=3.6ms  xyz=(+0.223,+0.045,2.059) m tag 100px
+t=  7.1s fps= 169.3 det=100.0% proc=3.3ms  xyz=(+0.011,+0.040,2.122) m tag 97px
+t=  8.1s fps= 173.0 det=100.0% proc=3.2ms  xyz=(+0.226,+0.045,2.062) m tag 99px
+t=  9.1s fps= 176.0 det=100.0% proc=3.8ms  xyz=(+0.246,+0.045,2.053) m tag 99px
+t= 10.1s fps= 178.4 det=100.0% proc=2.9ms  xyz=(+0.027,+0.041,2.123) m tag 96px
+t= 11.1s fps= 180.3 det=100.0% proc=3.1ms  xyz=(+0.036,+0.041,2.120) m tag 97px
+t= 12.1s fps= 181.9 det=100.0% proc=2.8ms  xyz=(+0.063,+0.042,2.108) m tag 97px
+t= 13.1s fps= 183.3 det=100.0% proc=2.5ms  xyz=(+0.062,+0.042,2.111) m tag 97px
+video: 608 frames, dropped 0
+done: 2429 frames in 13.2s, detected 2429, cam span 12.15s -> 199.9 fps

@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "chassis_replay.py", line 10, in <module>
+    VMAX = float(os.environ.get("VMAX", "0.4")); assert 0 < VMAX <= 1.0
+AssertionError

@@ -299,3 +299,32 @@ work). Results `grid_kp500_el*.json`.
   changes with USB enumeration order (usb0 or usb1; the other usbX / rndis0 are the Jetson's own gadget) and gets no
   DHCP lease -> set 192.168.42.3/24 manually (`nmcli device modify`, not persistent). D435i left/right IR (Y8I via
   V4L2) + RGB of the ball: `real_robot/d435_ball_20261110/`.
+
+## 2026-11-11: teach-and-replay on the real robot (RealSense ball, Blackfly ground truth, phone teach page)
+
+- Ball position from the onboard D435i (`real_robot/teach_web/rs_ball.py`, Jetson originals in
+  `jetson_scripts_20261111/ball_locate.py` + `floor_fit.py`): Hough circle + edge LSQ fit (D = 63.5 mm) for the range,
+  depth (Z16 via `v4l2-ctl ... pixelformat='Z16 '`) as a cross-check (agree within 2-4 mm), RANSAC floor plane ->
+  camera 0.131 m above the floor, pitched 0.7 deg UP; ball ~0.82 m ahead. Colour thresholds fail (floor ~ ball colour).
+- First teach (`teach_20261111/`, tag on the wall at 4 m, chassis unpowered): tag only 18 px -> orientation flips,
+  distance noise 1.2 cm; the reversal fell into a tag gap. Arm-only and arm+base replays at 0.2/0.5/1x (`replay_arm.py`
+  Kp 20/50 + grav + vel FF; `chassis_replay.py` drive_speed 50 Hz, vel FF + odometry P, heading hold, START_AT sync):
+  arm 1x rms 1.07/0.34 deg, torque 6.3 N m (limit raised 4 -> 12 N m). A 0.92 s control-loop stall at 0.2x jumped the
+  command 24 deg -> stall guard (> 0.1 s: freeze + stop the base).
+- Chassis findings: with the SDK connected the chassis yaws ~0.4 deg/s at zero speed (Blackfly-confirmed; FREE mode does
+  not help; SDK closed -> no drift) -> every SDK-connected controller holds heading on the attitude yaw. Wheel odometry
+  overstates fast motion by 15-22 % (slip near the ~2.1 m/s^2 accel limit) -> replays undershoot the taught base path
+  by the same amount every time (3 replays of 121838: run-to-run std 1.5 mm, peaks +0.178/-0.22 vs +0.208/-0.272 m).
+- `align_ball.py`: drive so the ball sits at a session's start position relative to the camera (20 Hz odometry +
+  heading servo, camera re-measures) -> 1-9 mm. `teach_web/bf_align.py` + `move_rel.py`: first-frame alignment from the
+  Blackfly tag pose (-> 4 mm / 2 mm / 0.2 deg). Conventions: chassis tag x = car backward, y = down, z = car LEFT; tag
+  yaw CCW+; RoboMaster attitude yaw CW+ (a sign error here spun the car 112 deg once; fixed).
+- Phone teach page (`teach_web/teach_web.py`, http://<desktop>:8765): START = Jetson RealSense snapshot + Blackfly
+  tag tracking + H.264 video (`track_rec.py`); SUCCESS / FAIL ends it, cuts the arm slice out of the always-on
+  `grav_comp_rec` log (waits for its 64 KB buffer), processes the ball on the desktop and writes `arm_100Hz.csv` +
+  `base_100Hz.csv` (replay format) + plot. 29 sessions in `teach_web/sessions/` (CSV gz, depth png, videos as
+  `*_small.mp4`). `plot_replay.py` / `compare_replays.py` / `overlay_video.py` compare replays with the teach
+  (50/50 video overlay, first frame aligned).
+- Results: replay of success 122744 (car +1 m) missed - the car went 0.75 m instead of 0.97 m; 121838 with ball missed
+  (net short by ~4 cm, taught -6 deg yaw not reproduced); 130053 (no ball) reproduced within 2 cm rms / 4.4 cm max.
+  Next: base feedback from the Blackfly (or pre-scaled reference), lateral + yaw in the chassis replay.

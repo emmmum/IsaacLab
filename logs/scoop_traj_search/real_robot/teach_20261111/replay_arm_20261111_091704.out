@@ -1,0 +1,4 @@
+09:17:09 start q -2.85 +5.80; traj start +0.49 -6.99, duration 9.5 s at x1.0
+09:17:25 playing
+09:17:35 DONE latched at cmd -2.72 +5.80, q -2.85 +5.80 (Kp 20/50 + FF)
+FINAL_CMD_DEG -2.721 5.797

@@ -1,0 +1,20 @@
+{
+ "arm_err_rms_deg": [
+  1.2823800552633415,
+  0.5006685731410678
+ ],
+ "arm_err_max_deg": [
+  4.8838922456951375,
+  2.0294165103533754
+ ],
+ "base_real_vs_teach_rms_m": 0.02034865567521138,
+ "base_real_vs_teach_max_m": 0.044026666582025004,
+ "base_odom_vs_teach_rms_m": 0.010024033421940762,
+ "base_end_teach_real_odom_m": [
+  0.14595,
+  0.12008473310162497,
+  0.1481
+ ],
+ "blackfly_gap_s": 0.0,
+ "ball_after": "not found ([Errno 2] No such file or directory: '/home/yifan/IsaacLab/logs/scoop_traj_search/real_robot/teach_web/sessions/20261111_130053/replay_130735/after_replay/depth.raw')"
+}
